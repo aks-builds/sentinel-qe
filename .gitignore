@@ -1,0 +1,45 @@
+# dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# next.js
+apps/web/.next/
+apps/web/out/
+
+# build outputs
+dist/
+build/
+*.tsbuildinfo
+next-env.d.ts
+
+# env files
+.env
+.env.local
+.env.*.local
+
+# turbo
+.turbo/
+
+# testing
+coverage/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# python
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+
+# editor
+.idea/
+.vscode/settings.json
+*.swp
+
+# docker volumes
+docker/volumes/
