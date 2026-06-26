@@ -1,0 +1,15 @@
+version: '3.9'
+
+# Development overrides: exposes extra ports, disables restart policies
+services:
+  postgres:
+    restart: 'no'
+
+  redis:
+    restart: 'no'
+
+  minio:
+    restart: 'no'
+
+  clickhouse:
+    restart: 'no'

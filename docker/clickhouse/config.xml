@@ -1,0 +1,8 @@
+<clickhouse>
+  <listen_host>0.0.0.0</listen_host>
+  <logger>
+    <level>warning</level>
+    <console>true</console>
+  </logger>
+  <mark_cache_size>5368709120</mark_cache_size>
+</clickhouse>
