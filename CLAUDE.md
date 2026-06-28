@@ -16,51 +16,40 @@ Full spec: `docs/superpowers/specs/2026-06-26-sentinel-design.md`
 ## Current Status
 
 **Phase:** Foundation (Days 1–5)
-**Day completed:** Day 2
+**Day completed:** Day 3
 **What was built:**
-- Prisma schema: Organization, User, AuditLog, Account, Session, VerificationToken
-- Prisma client singleton at `apps/web/lib/db.ts`
-- NextAuth.js v5 Credentials provider with JWT sessions
-- `/login` page with email/password form (shadcn/ui Input + Label)
-- `/dashboard` shell page with server-side auth check
-- `middleware.ts` protecting `/dashboard/:path*` → redirects to `/login`
-- Vitest tests: login form renders + error state + success redirect + middleware config
+- `lib/modules.ts` — Module metadata (Probe/Mirror/Guard/Cognify/Reach) with id, name, description, href, status
+- shadcn/ui Sheet, Separator, Avatar, Badge components
+- `components/dashboard/sidebar.tsx` — Desktop sidebar with module nav links + Lucide icons
+- `components/dashboard/sign-out-button.tsx` — Client component calling `signOut`
+- `components/dashboard/header.tsx` — Top header with user initials avatar + sign-out button
+- `components/dashboard/module-card.tsx` — Module card with name, description, Coming Soon badge
+- `app/dashboard/layout.tsx` — Nested layout: sidebar + header shell, server-side auth gate
+- `app/dashboard/page.tsx` — Updated: grid of 5 module cards
+- Vitest tests: 18 passing (module metadata × 3, sidebar links × 2, sign-out button × 1, module cards × 3, prior × 9)
 
 **Notes:**
-- `prisma migrate dev` still blocked by VT-x Docker blocker — schema and types generated but no DB migration run yet.
-- Run `prisma migrate dev --name init` once Docker is available.
+- `prisma migrate dev` still blocked by VT-x Docker blocker.
+- No mobile navigation yet — sidebar is desktop-only for now.
 
 ---
 
-## Next Session — Day 3
+## Next Session — Day 4
 
-**Plan file:** `docs/superpowers/plans/2026-06-29-day3-dashboard-shell.md` *(to be written)*
+**Plan file:** `docs/superpowers/plans/2026-06-30-day4-engine-scaffold.md` *(to be written)*
 
-**Goal:** Main dashboard layout — sidebar navigation, top header, module cards (Probe/Mirror/Guard/Cognify/Reach), empty state.
+**Goal:** Python FastAPI engine scaffold — `apps/engine/` with Poetry, FastAPI, Uvicorn, basic health endpoint, Dockerfile, and wired into Docker Compose.
 
 **Steps overview:**
-1. Add shadcn/ui Sheet, Separator, Avatar, Badge components
-2. Build `DashboardLayout` with collapsible sidebar + module nav links
-3. Build top `Header` component with user avatar + sign-out button
-4. Build `ModuleCard` component (name, description, status badge)
-5. Wire module cards into dashboard home page
-6. Write Vitest tests: layout renders, sidebar links present, sign-out button present
+1. Create `apps/engine/` with `pyproject.toml` (Poetry)
+2. Scaffold `sentinel_engine/main.py` — FastAPI app with `/health` endpoint
+3. Add `apps/engine/Dockerfile` (python:3.12-slim base)
+4. Add `engine` service to `docker/docker-compose.yml`
+5. Add `apps/engine/sentinel_engine/routers/` directory with one empty router per module
+6. Write pytest tests: health endpoint returns `{"status": "ok"}`
 7. Commit
 
-**Start command for Day 3:**
-```bash
-cd C:\Users\AdityaKumarSingh\sentinel
-docker compose -f docker/docker-compose.yml up -d
-pnpm --filter @sentinel/web dev
-```
-
 **Architecture decisions locked in:**
-- Modular monolith: Next.js 15 shell + Python FastAPI engine (engine scaffolded Day 4)
-- PostgreSQL via Prisma for all relational data
-- ClickHouse for trace/metric time-series (wired Day 5)
-- pnpm workspaces + Turborepo
-- shadcn/ui + Tailwind CSS v3
-- Vitest for all JS/TS tests
-
-**Blockers / Notes:**
-None.
+- Engine: Python 3.12 + FastAPI + Uvicorn + Poetry
+- Next.js app calls engine via internal HTTP (same Docker network)
+- Engine port: 8000 (internal), not exposed in production
