@@ -1,18 +1,18 @@
-import { auth } from '@/auth'
-import { redirect } from 'next/navigation'
+import { MODULES } from '@/lib/modules'
+import { ModuleCard } from '@/components/dashboard/module-card'
 
-export default async function DashboardPage() {
-  const session = await auth()
-  if (!session) redirect('/login')
-
+export default function DashboardPage() {
   return (
-    <main className="flex min-h-screen flex-col p-8">
+    <div className="space-y-6">
       <div className="space-y-1">
         <h1 className="text-2xl font-bold">Dashboard</h1>
-        <p className="text-sm text-muted-foreground">
-          Welcome, {session.user?.email}
-        </p>
+        <p className="text-sm text-muted-foreground">Select a module to get started.</p>
       </div>
-    </main>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {MODULES.map((module) => (
+          <ModuleCard key={module.id} module={module} />
+        ))}
+      </div>
+    </div>
   )
 }
