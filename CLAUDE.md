@@ -16,38 +16,38 @@ Full spec: `docs/superpowers/specs/2026-06-26-sentinel-design.md`
 ## Current Status
 
 **Phase:** Foundation (Days 1–5)
-**Day completed:** Day 1
+**Day completed:** Day 2
 **What was built:**
-- pnpm + Turborepo monorepo root
-- Next.js 15 app at `apps/web` with Tailwind CSS v3
-- shadcn/ui with Button component + `cn()` utility
-- Vitest with 4 passing tests
-- Docker Compose: PostgreSQL 16, Redis 7, MinIO, ClickHouse 24 — all healthy
+- Prisma schema: Organization, User, AuditLog, Account, Session, VerificationToken
+- Prisma client singleton at `apps/web/lib/db.ts`
+- NextAuth.js v5 Credentials provider with JWT sessions
+- `/login` page with email/password form (shadcn/ui Input + Label)
+- `/dashboard` shell page with server-side auth check
+- `middleware.ts` protecting `/dashboard/:path*` → redirects to `/login`
+- Vitest tests: login form renders + error state + success redirect + middleware config
 
 **Notes:**
-- Docker services committed but cannot be live-verified due to BIOS VT-x blocker on this machine. Docker verification pending until VT-x is enabled in BIOS.
+- `prisma migrate dev` still blocked by VT-x Docker blocker — schema and types generated but no DB migration run yet.
+- Run `prisma migrate dev --name init` once Docker is available.
 
 ---
 
-## Next Session — Day 2
+## Next Session — Day 3
 
-**Plan file:** `docs/superpowers/plans/2026-06-27-day2-auth.md` *(to be written)*
+**Plan file:** `docs/superpowers/plans/2026-06-29-day3-dashboard-shell.md` *(to be written)*
 
-**Goal:** Prisma schema (Org, User, Session, AuditLog) + NextAuth.js v5 email/password auth + login/logout UI + dashboard route protection.
+**Goal:** Main dashboard layout — sidebar navigation, top header, module cards (Probe/Mirror/Guard/Cognify/Reach), empty state.
 
 **Steps overview:**
-1. Install Prisma in `apps/web`, init with `DATABASE_URL` from `.env`
-2. Write schema: `Organization`, `User`, `Session`, `VerificationToken`, `AuditLog`
-3. Run first migration: `pnpm --filter @sentinel/web exec prisma migrate dev --name init`
-4. Install NextAuth.js v5 (`next-auth@5.0.0-beta.x`)
-5. Configure Credentials provider (email + bcrypt password)
-6. Build `/login` page with email/password form using shadcn/ui `<Input>` + `<Button>`
-7. Add `middleware.ts` to protect `/dashboard` → redirect to `/login` if not authenticated
-8. Build empty `/dashboard` page (shell only — sidebar comes Day 3)
-9. Write Vitest tests: login form renders, unauthenticated redirect works
-10. Commit
+1. Add shadcn/ui Sheet, Separator, Avatar, Badge components
+2. Build `DashboardLayout` with collapsible sidebar + module nav links
+3. Build top `Header` component with user avatar + sign-out button
+4. Build `ModuleCard` component (name, description, status badge)
+5. Wire module cards into dashboard home page
+6. Write Vitest tests: layout renders, sidebar links present, sign-out button present
+7. Commit
 
-**Start command for Day 2:**
+**Start command for Day 3:**
 ```bash
 cd C:\Users\AdityaKumarSingh\sentinel
 docker compose -f docker/docker-compose.yml up -d
