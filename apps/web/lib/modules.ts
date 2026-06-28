@@ -1,7 +1,9 @@
 export type ModuleStatus = 'active' | 'coming-soon'
 
+export type ModuleId = 'probe' | 'mirror' | 'guard' | 'cognify' | 'reach'
+
 export type Module = {
-  id: string
+  id: ModuleId
   name: string
   description: string
   href: string

@@ -1,20 +1,23 @@
 import Link from 'next/link'
 import { FlaskConical, Monitor, Shield, Brain, Globe } from 'lucide-react'
 import { Separator } from '@/components/ui/separator'
-import { MODULES } from '@/lib/modules'
+import { MODULES, type ModuleId } from '@/lib/modules'
 import { cn } from '@/lib/utils'
 
-const MODULE_ICONS = {
+const MODULE_ICONS: Record<ModuleId, React.ElementType> = {
   probe: FlaskConical,
   mirror: Monitor,
   guard: Shield,
   cognify: Brain,
   reach: Globe,
-} as const
+}
 
 export function Sidebar({ className }: { className?: string }) {
   return (
-    <aside className={cn('flex w-60 shrink-0 flex-col border-r bg-background', className)}>
+    <aside
+      aria-label="Main navigation"
+      className={cn('flex w-60 shrink-0 flex-col border-r bg-background', className)}
+    >
       <div className="flex h-14 items-center px-4">
         <Link
           href="/dashboard"
@@ -26,7 +29,7 @@ export function Sidebar({ className }: { className?: string }) {
       <Separator />
       <nav className="flex flex-1 flex-col gap-1 p-3">
         {MODULES.map((module) => {
-          const Icon = MODULE_ICONS[module.id as keyof typeof MODULE_ICONS]
+          const Icon = MODULE_ICONS[module.id]
           return (
             <Link
               key={module.id}
