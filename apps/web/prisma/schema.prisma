@@ -4,6 +4,7 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+  // URL is configured in prisma.config.ts (Prisma v7+). See: apps/web/prisma.config.ts
 }
 
 // ─── Core domain models ───────────────────────────────────────────────────────
