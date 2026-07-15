@@ -1,3 +1,4 @@
+import type { Route } from 'next'
 import Link from 'next/link'
 import { Badge } from '@/components/ui/badge'
 import { type Module } from '@/lib/modules'
@@ -6,7 +7,7 @@ import { cn } from '@/lib/utils'
 export function ModuleCard({ module }: { module: Module }) {
   return (
     <Link
-      href={module.href}
+      href={module.href as Route}
       className={cn(
         'flex flex-col gap-3 rounded-lg border p-5',
         'transition-colors hover:bg-accent'

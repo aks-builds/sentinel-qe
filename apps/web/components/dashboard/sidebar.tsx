@@ -1,3 +1,4 @@
+import type { Route } from 'next'
 import Link from 'next/link'
 import { FlaskConical, Monitor, Shield, Brain, Globe } from 'lucide-react'
 import { Separator } from '@/components/ui/separator'
@@ -33,7 +34,7 @@ export function Sidebar({ className }: { className?: string }) {
           return (
             <Link
               key={module.id}
-              href={module.href}
+              href={module.href as Route}
               className="flex items-center gap-3 rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
             >
               {Icon && <Icon className="h-4 w-4 shrink-0" aria-hidden />}
