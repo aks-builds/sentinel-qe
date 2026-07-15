@@ -40,6 +40,21 @@ describe('LoginPage', () => {
     expect(await screen.findByText('Invalid email or password')).toBeInTheDocument()
   })
 
+  it('shows a rate-limit message when signIn returns the rate_limited code', async () => {
+    const { signIn } = await import('next-auth/react')
+    vi.mocked(signIn).mockResolvedValueOnce({ error: 'CredentialsSignin', code: 'rate_limited', ok: false, status: 429, url: null })
+
+    const { default: LoginPage } = await import('./page')
+    const user = userEvent.setup()
+    render(<LoginPage />)
+
+    await user.type(screen.getByLabelText('Email'), 'user@example.com')
+    await user.type(screen.getByLabelText('Password'), 'correctpass')
+    await user.click(screen.getByRole('button', { name: 'Sign in' }))
+
+    expect(await screen.findByText('Too many attempts. Please try again later.')).toBeInTheDocument()
+  })
+
   it('redirects to dashboard on successful sign in', async () => {
     const { signIn } = await import('next-auth/react')
     vi.mocked(signIn).mockResolvedValueOnce({ error: undefined, code: undefined, ok: true, status: 200, url: '/dashboard' })
