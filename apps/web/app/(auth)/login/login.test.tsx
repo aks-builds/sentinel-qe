@@ -27,7 +27,7 @@ describe('LoginPage', () => {
 
   it('shows an error message when credentials are invalid', async () => {
     const { signIn } = await import('next-auth/react')
-    vi.mocked(signIn).mockResolvedValueOnce({ error: 'CredentialsSignin', ok: false, status: 401, url: null })
+    vi.mocked(signIn).mockResolvedValueOnce({ error: 'CredentialsSignin', code: undefined, ok: false, status: 401, url: null })
 
     const { default: LoginPage } = await import('./page')
     const user = userEvent.setup()
@@ -42,7 +42,7 @@ describe('LoginPage', () => {
 
   it('redirects to dashboard on successful sign in', async () => {
     const { signIn } = await import('next-auth/react')
-    vi.mocked(signIn).mockResolvedValueOnce({ error: undefined, ok: true, status: 200, url: '/dashboard' })
+    vi.mocked(signIn).mockResolvedValueOnce({ error: undefined, code: undefined, ok: true, status: 200, url: '/dashboard' })
 
     const { default: LoginPage } = await import('./page')
     const user = userEvent.setup()
