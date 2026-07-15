@@ -1,11 +1,13 @@
 import { describe, it, expect, vi } from 'vitest'
 
-// Mock the auth module since it requires next-auth which won't load in jsdom
-vi.mock('./auth', () => ({
-  auth: vi.fn(),
+vi.mock('next-auth', () => ({
+  default: () => ({ auth: vi.fn() }),
 }))
 
-// Mock next/navigation
+vi.mock('./auth.config', () => ({
+  authConfig: {},
+}))
+
 vi.mock('next/navigation', () => ({
   redirect: vi.fn(),
 }))
