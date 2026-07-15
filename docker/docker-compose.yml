@@ -89,6 +89,18 @@ services:
       retries: 15
       start_period: 15s
 
+  engine:
+    build:
+      context: ../apps/engine
+      dockerfile: Dockerfile
+    container_name: sentinel_engine
+    restart: unless-stopped
+    expose:
+      - '8000'
+    depends_on:
+      - postgres
+      - redis
+
 volumes:
   postgres_data:
   redis_data:
