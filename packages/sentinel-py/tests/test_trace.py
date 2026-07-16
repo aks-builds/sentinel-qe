@@ -61,3 +61,13 @@ def test_trace_swallows_network_errors(mock_urlopen):
 
     with sentinel.trace("run-002"):
         pass  # must not raise even though urlopen raised URLError
+
+
+def test_trace_swallows_malformed_endpoint_errors():
+    # A scheme-less endpoint (e.g. "localhost" instead of "http://localhost:3000")
+    # makes urllib.request.Request itself raise ValueError before urlopen is ever
+    # called -- this must be swallowed just like a network failure.
+    sentinel.init(endpoint="localhost", api_key="sk_test", project="demo-project")
+
+    with sentinel.trace("run-003"):
+        pass  # must not raise even though Request() raised ValueError

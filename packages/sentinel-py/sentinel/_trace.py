@@ -13,19 +13,19 @@ def _now_iso() -> str:
 
 
 def _emit_span(payload: dict, config: SentinelConfig) -> None:
-    url = f"{config.endpoint.rstrip('/')}/api/traces"
-    request = Request(
-        url,
-        data=json.dumps(payload).encode("utf-8"),
-        headers={
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {config.api_key}",
-        },
-        method="POST",
-    )
     try:
+        url = f"{config.endpoint.rstrip('/')}/api/traces"
+        request = Request(
+            url,
+            data=json.dumps(payload).encode("utf-8"),
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {config.api_key}",
+            },
+            method="POST",
+        )
         urlopen(request, timeout=5)
-    except URLError:
+    except (URLError, ValueError):
         pass
 
 
