@@ -12,6 +12,15 @@ const traceSchema = z.object({
   attributes: z.record(z.string(), z.unknown()).optional(),
 })
 
+// ClickHouse's DateTime64 rejects the 'T'/'Z' ISO-8601 separators (e.g.
+// `Cannot parse string '...480Z' as DateTime64(3)`) — it wants
+// 'YYYY-MM-DD HH:MM:SS.sss'. Returns null if the input isn't a valid date.
+function toClickHouseDateTime(isoString: string): string | null {
+  const date = new Date(isoString)
+  if (Number.isNaN(date.getTime())) return null
+  return date.toISOString().replace('T', ' ').replace('Z', '')
+}
+
 export async function POST(request: Request) {
   let body: unknown
   try {
@@ -28,6 +37,12 @@ export async function POST(request: Request) {
 
   const { traceId, spanId, parentSpanId, name, startTime, endTime, attributes } = parsed.data
 
+  const startTimeCH = toClickHouseDateTime(startTime)
+  const endTimeCH = toClickHouseDateTime(endTime)
+  if (startTimeCH === null || endTimeCH === null) {
+    return NextResponse.json({ error: 'startTime/endTime must be valid dates' }, { status: 400 })
+  }
+
   await ensureTracesTable()
   await clickhouse.insert({
     table: 'traces',
@@ -37,8 +52,8 @@ export async function POST(request: Request) {
         span_id: spanId,
         parent_span_id: parentSpanId ?? '',
         name,
-        start_time: startTime,
-        end_time: endTime,
+        start_time: startTimeCH,
+        end_time: endTimeCH,
         attributes: JSON.stringify(attributes ?? {}),
       },
     ],
