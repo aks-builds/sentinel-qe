@@ -51,4 +51,17 @@ describe('POST /api/traces', () => {
     expect(response.status).toBe(400)
     expect(mockInsert).not.toHaveBeenCalled()
   })
+
+  it('returns 400 for a body that is not valid JSON', async () => {
+    const { POST } = await import('./route')
+    const request = new Request('http://localhost/api/traces', {
+      method: 'POST',
+      body: 'not json',
+    })
+
+    const response = await POST(request)
+
+    expect(response.status).toBe(400)
+    expect(mockInsert).not.toHaveBeenCalled()
+  })
 })

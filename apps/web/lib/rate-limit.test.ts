@@ -2,28 +2,29 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 const store = new Map<string, Map<string, number>>()
 
+// Mirrors the SLIDING_WINDOW_SCRIPT Lua script's behavior against the same
+// in-memory store, since the real implementation now does everything in one
+// EVAL round trip instead of four separate commands.
 const fakeRedis = {
-  async zremrangebyscore(key: string, min: number, max: number) {
-    const set = store.get(key)
-    if (!set) return 0
-    let removed = 0
-    for (const [member, score] of set) {
-      if (score >= min && score <= max) {
-        set.delete(member)
-        removed++
-      }
+  async eval(
+    _script: string,
+    _numkeys: number,
+    key: string,
+    windowStart: number,
+    maxAttempts: number,
+    now: number,
+    member: string,
+    _windowSeconds: number
+  ) {
+    const set = store.get(key) ?? new Map<string, number>()
+    for (const [m, score] of set) {
+      if (score >= 0 && score <= windowStart) set.delete(m)
     }
-    return removed
-  },
-  async zcard(key: string) {
-    return store.get(key)?.size ?? 0
-  },
-  async zadd(key: string, score: number, member: string) {
-    if (!store.has(key)) store.set(key, new Map())
-    store.get(key)!.set(member, score)
-    return 1
-  },
-  async expire(_key: string, _seconds: number) {
+    store.set(key, set)
+
+    if (set.size >= maxAttempts) return 0
+
+    set.set(member, now)
     return 1
   },
 }
