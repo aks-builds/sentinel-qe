@@ -15,38 +15,39 @@ Full spec: `docs/superpowers/specs/2026-06-26-sentinel-design.md`
 
 ## Current Status
 
-**Phase:** Foundation (Days 1–5)
-**Day completed:** Day 4
+**Phase:** Foundation (Days 1–5) — COMPLETE
+**Day completed:** Day 5
 **What was built:**
-- `apps/engine/` — Poetry-managed Python 3.12 FastAPI service (`sentinel-engine` package, importable as `sentinel_engine`)
-- `sentinel_engine/main.py` — FastAPI app with `/health` endpoint, includes all 5 module routers
-- `sentinel_engine/routers/{probe,mirror,guard,cognify,reach}.py` — stub `APIRouter`s, each with `GET /<module>/` returning `{"module": "<id>", "status": "not_implemented"}`
-- `apps/engine/Dockerfile` — `python:3.12-slim` base, Poetry install, Uvicorn entrypoint on port 8000
-- `docker/docker-compose.yml` — added `engine` service (internal-only, port 8000, depends on postgres + redis)
-- pytest tests: 6 passing (health × 1, module router stubs × 5)
+- Fixed `pnpm check-types` (missing `code` field on `SignInResponse` mocks in `login.test.tsx`)
+- Split `auth.config.ts` (Edge-safe) out of `auth.ts` — `middleware.ts` now builds its own edge-only `auth()`, no longer pulling Prisma/bcrypt into the Edge runtime
+- `lib/redis.ts` + `lib/rate-limit.ts` — Redis sorted-set sliding-window rate limiter, applied to `/login` (5 attempts / 15 minutes, keyed by IP+email)
+- `lib/engine.ts` — `checkEngineHealth()`, a web→engine `/health` check
+- `lib/clickhouse.ts` + `app/api/traces/route.ts` — minimal ClickHouse trace-ingestion endpoint (`traces` table, `POST /api/traces`)
+- Vitest tests: 27 passing
 
 **Notes:**
-- `docker compose build engine` / `docker compose up` not run this session — Docker still blocked by the VT-x BIOS issue (same blocker as `prisma migrate dev`). Dockerfile and compose wiring were verified by manual review only; run a full `docker compose up` once Docker is available to confirm the engine container actually builds and starts.
-- `prisma migrate dev` still blocked by VT-x Docker blocker (unchanged from Day 3).
-- No mobile navigation yet — sidebar is desktop-only for now (unchanged from Day 3).
+- `ENGINE_URL` assumes web runs inside the Docker network alongside the `engine` compose service — `pnpm dev` on the host can't reach it yet; no `web` compose service exists to fix this.
+- Host port 5432 conflict (native Windows Postgres vs. Docker's forward) is still unresolved — `prisma migrate dev` still can't run from the host.
+- No mobile navigation yet — sidebar is desktop-only for now (unchanged since Day 3).
+- No GitHub remote, README, or LICENSE yet.
 
 ---
 
-## Next Session — Day 5
+## Next Session — Day 6
 
-**Plan file:** `docs/superpowers/plans/2026-07-01-day5-redis-integration.md` *(to be written)*
+**Plan file:** `docs/superpowers/plans/2026-07-02-day6-sentinel-py-sdk.md` *(to be written)*
 
-**Goal:** Wire Redis into the running system for real: rate limiting on `/login` (tracked tech debt since Day 2) and a first live web→engine integration check against the new `/health` endpoint.
+**Goal:** Begin Phase 2 (Probe v1) — the `sentinel-py` SDK: `sentinel.init()`, a `trace()` context manager, and HTTP emission of traces to the Sentinel `/api/traces` endpoint built on Day 5.
 
-**Steps overview:**
-1. Add a Redis client to `apps/web` (e.g. `ioredis`) and a rate-limit helper keyed by IP/email
-2. Apply rate limiting to the `/login` credentials flow in `apps/web/auth.ts` or the login route handler
-3. Add an internal engine base URL env var (`ENGINE_URL=http://engine:8000`) to `apps/web` and `docker/docker-compose.yml`
-4. Write a small server-side helper in `apps/web` that calls `GET {ENGINE_URL}/health` and add a test that mocks the fetch
-5. Vitest tests for rate-limit helper (blocks after N attempts, resets after window)
+**Steps overview (from the design spec, Phase 2 Day 6):**
+1. Scaffold `packages/sentinel-py/` as its own Poetry project (`sentinel-sdk` on PyPI, importable as `sentinel`)
+2. `sentinel.init(endpoint, api_key, project)` — module-level client config
+3. `sentinel.trace(name)` — context manager that generates `trace_id`/`span_id`, records start/end time
+4. On trace exit, HTTP POST the span to `{endpoint}/api/traces` (the endpoint built Day 5)
+5. pytest tests: `init()` stores config, `trace()` emits a well-formed POST body matching the Day 5 `/api/traces` schema
 6. Commit
 
 **Architecture decisions locked in:**
-- Redis 7 already running via `docker/docker-compose.yml` (Day 1)
-- Rate limiting is IP+email keyed, sliding window, backed by Redis (not in-memory — must survive across app instances)
-- Web-to-engine calls go over the internal Docker network using the `engine` service name, never a host-exposed port
+- `sentinel-py` is a separate Poetry project under `packages/`, not part of `apps/engine`
+- Traces flow SDK → `POST /api/traces` (Next.js web app) → ClickHouse — not through the Python engine
+- This is Phase 2 (Days 6-15) of the full 50-day roadmap — Foundation (Days 1-5) is now complete

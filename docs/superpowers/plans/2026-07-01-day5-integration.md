@@ -104,6 +104,140 @@ git commit -m "fix(day5): add missing code field to SignInResponse mocks"
 
 ---
 
+### Task 1b: Module Placeholder Pages (typedRoutes fix)
+
+**Discovered mid-execution, not in the original plan:** `next.config.ts` has `typedRoutes: true`. Once `.next/types` exists (it now does), TypeScript rejects the 5 module nav hrefs (`/dashboard/probe`, `/mirror`, `/guard`, `/cognify`, `/reach`) because no `page.tsx` exists for any of them yet — a pre-existing Day 3 gap, unrelated to Day 5's actual scope, but it blocks the `pnpm check-types` gate every other Day 5 task relies on. User chose to fix it by adding real stub pages (also fixes the actual 404 a user would hit today clicking those nav links), rather than disabling `typedRoutes` or ignoring it.
+
+**Files:**
+- Create: `apps/web/components/dashboard/module-placeholder-page.tsx`
+- Create: `apps/web/components/dashboard/module-placeholder-page.test.tsx`
+- Create: `apps/web/app/dashboard/probe/page.tsx`
+- Create: `apps/web/app/dashboard/mirror/page.tsx`
+- Create: `apps/web/app/dashboard/guard/page.tsx`
+- Create: `apps/web/app/dashboard/cognify/page.tsx`
+- Create: `apps/web/app/dashboard/reach/page.tsx`
+
+**Interfaces:**
+- Consumes: `MODULES`, `type ModuleId` from `@/lib/modules`
+- Produces: `<ModulePlaceholderPage moduleId={id} />` — renders that module's name, description, and "Coming soon."
+
+- [ ] **Step 1: Write the failing test**
+
+Create `apps/web/components/dashboard/module-placeholder-page.test.tsx`:
+
+```tsx
+import { render, screen } from '@testing-library/react'
+import { describe, it, expect } from 'vitest'
+import { ModulePlaceholderPage } from './module-placeholder-page'
+
+describe('ModulePlaceholderPage', () => {
+  it('renders the module name, description, and a coming-soon note', () => {
+    render(<ModulePlaceholderPage moduleId="probe" />)
+    expect(screen.getByRole('heading', { name: 'Probe' })).toBeInTheDocument()
+    expect(screen.getByText(/Test AI agents you build/)).toBeInTheDocument()
+    expect(screen.getByText('Coming soon.')).toBeInTheDocument()
+  })
+})
+```
+
+- [ ] **Step 2: Run test to confirm it fails**
+
+```bash
+pnpm --filter @sentinel/web test module-placeholder-page.test.tsx
+```
+
+Expected: FAIL — `Cannot find module './module-placeholder-page'`.
+
+- [ ] **Step 3: Create `apps/web/components/dashboard/module-placeholder-page.tsx`**
+
+```tsx
+import { MODULES, type ModuleId } from '@/lib/modules'
+
+export function ModulePlaceholderPage({ moduleId }: { moduleId: ModuleId }) {
+  const module = MODULES.find((m) => m.id === moduleId)!
+  return (
+    <div className="space-y-2">
+      <h1 className="text-2xl font-bold">{module.name}</h1>
+      <p className="text-muted-foreground">{module.description}</p>
+      <p className="text-sm text-muted-foreground">Coming soon.</p>
+    </div>
+  )
+}
+```
+
+- [ ] **Step 4: Run test to confirm it passes**
+
+```bash
+pnpm --filter @sentinel/web test module-placeholder-page.test.tsx
+```
+
+Expected: 1/1 passing.
+
+- [ ] **Step 5: Create the 5 page files**
+
+Create `apps/web/app/dashboard/probe/page.tsx`:
+```tsx
+import { ModulePlaceholderPage } from '@/components/dashboard/module-placeholder-page'
+
+export default function ProbePage() {
+  return <ModulePlaceholderPage moduleId="probe" />
+}
+```
+
+Create `apps/web/app/dashboard/mirror/page.tsx`:
+```tsx
+import { ModulePlaceholderPage } from '@/components/dashboard/module-placeholder-page'
+
+export default function MirrorPage() {
+  return <ModulePlaceholderPage moduleId="mirror" />
+}
+```
+
+Create `apps/web/app/dashboard/guard/page.tsx`:
+```tsx
+import { ModulePlaceholderPage } from '@/components/dashboard/module-placeholder-page'
+
+export default function GuardPage() {
+  return <ModulePlaceholderPage moduleId="guard" />
+}
+```
+
+Create `apps/web/app/dashboard/cognify/page.tsx`:
+```tsx
+import { ModulePlaceholderPage } from '@/components/dashboard/module-placeholder-page'
+
+export default function CognifyPage() {
+  return <ModulePlaceholderPage moduleId="cognify" />
+}
+```
+
+Create `apps/web/app/dashboard/reach/page.tsx`:
+```tsx
+import { ModulePlaceholderPage } from '@/components/dashboard/module-placeholder-page'
+
+export default function ReachPage() {
+  return <ModulePlaceholderPage moduleId="reach" />
+}
+```
+
+- [ ] **Step 6: Run full suite and type check**
+
+```bash
+pnpm --filter @sentinel/web test
+pnpm --filter @sentinel/web check-types
+```
+
+Expected: 18/18 tests passing (17 prior + 1 new). `check-types` exits 0 — this clears all 5 `RouteImpl` errors since every module href now resolves to a real page.
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add apps/web/components/dashboard/module-placeholder-page.tsx apps/web/components/dashboard/module-placeholder-page.test.tsx apps/web/app/dashboard/probe/page.tsx apps/web/app/dashboard/mirror/page.tsx apps/web/app/dashboard/guard/page.tsx apps/web/app/dashboard/cognify/page.tsx apps/web/app/dashboard/reach/page.tsx
+git commit -m "fix(day5): add module placeholder pages to satisfy typedRoutes"
+```
+
+---
+
 ### Task 2: Edge-Safe Auth Config Split
 
 **Files:**
@@ -231,7 +365,7 @@ export const config = {
 pnpm --filter @sentinel/web test
 ```
 
-Expected: all 17 tests still passing (the middleware test's assertion is unchanged, only its mocks changed).
+Expected: all 18 tests still passing (the middleware test's assertion is unchanged, only its mocks changed).
 
 - [ ] **Step 7: Type check**
 
@@ -408,7 +542,7 @@ pnpm --filter @sentinel/web test
 pnpm --filter @sentinel/web check-types
 ```
 
-Expected: 20/20 tests passing (17 prior + 3 new), no type errors.
+Expected: 21/21 tests passing (18 prior + 3 new), no type errors.
 
 - [ ] **Step 9: Commit**
 
@@ -547,7 +681,7 @@ pnpm --filter @sentinel/web test
 pnpm --filter @sentinel/web check-types
 ```
 
-Expected: 21/21 passing (20 prior + 1 new), no type errors. `auth.ts` isn't directly unit-tested (it requires a live DB/Redis) — this is a known gap, consistent with how the pre-existing `authorize` logic was never unit-tested either.
+Expected: 22/22 passing (21 prior + 1 new), no type errors. `auth.ts` isn't directly unit-tested (it requires a live DB/Redis) — this is a known gap, consistent with how the pre-existing `authorize` logic was never unit-tested either.
 
 - [ ] **Step 7: Commit**
 
@@ -654,7 +788,7 @@ pnpm --filter @sentinel/web test
 pnpm --filter @sentinel/web check-types
 ```
 
-Expected: 24/24 passing (21 prior + 3 new), no type errors.
+Expected: 25/25 passing (22 prior + 3 new), no type errors.
 
 - [ ] **Step 7: Commit**
 
@@ -856,7 +990,7 @@ pnpm --filter @sentinel/web test
 pnpm --filter @sentinel/web check-types
 ```
 
-Expected: 26/26 passing (24 prior + 2 new), no type errors.
+Expected: 27/27 passing (25 prior + 2 new), no type errors.
 
 - [ ] **Step 9: Commit**
 
@@ -887,7 +1021,7 @@ Replace the `## Current Status` block with:
 - `lib/redis.ts` + `lib/rate-limit.ts` — Redis sorted-set sliding-window rate limiter, applied to `/login` (5 attempts / 15 minutes, keyed by IP+email)
 - `lib/engine.ts` — `checkEngineHealth()`, a web→engine `/health` check
 - `lib/clickhouse.ts` + `app/api/traces/route.ts` — minimal ClickHouse trace-ingestion endpoint (`traces` table, `POST /api/traces`)
-- Vitest tests: 26 passing
+- Vitest tests: 27 passing
 
 **Notes:**
 - `ENGINE_URL` assumes web runs inside the Docker network alongside the `engine` compose service — `pnpm dev` on the host can't reach it yet; no `web` compose service exists to fix this.
