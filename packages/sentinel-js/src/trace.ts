@@ -1,10 +1,18 @@
+import { validateSchema } from './schema'
+
 export interface TracePayload {
   traceId: string
   spanId: string
+  parentSpanId?: string
   name: string
   startTime: string
   endTime: string
   attributes?: Record<string, unknown>
+}
+
+export interface ToolCallResult {
+  valid: boolean
+  errors: string[]
 }
 
 async function emitSpan(payload: TracePayload, endpoint: string, apiKey: string): Promise<void> {
@@ -56,5 +64,36 @@ export class Trace {
       this.endpoint,
       this.apiKey
     )
+  }
+
+  async toolCall(
+    name: string,
+    declaredSchema: Record<string, unknown>,
+    actualParameters: Record<string, unknown>
+  ): Promise<ToolCallResult> {
+    const errors = validateSchema(declaredSchema, actualParameters)
+    const result: ToolCallResult = { valid: errors.length === 0, errors }
+    const now = new Date().toISOString()
+    await emitSpan(
+      {
+        traceId: this.traceId,
+        spanId: crypto.randomUUID().replace(/-/g, ''),
+        parentSpanId: this.spanId,
+        name: `tool_call:${name}`,
+        startTime: now,
+        endTime: now,
+        attributes: {
+          project: this.project,
+          toolName: name,
+          declaredSchema,
+          actualParameters,
+          valid: result.valid,
+          errors: result.errors,
+        },
+      },
+      this.endpoint,
+      this.apiKey
+    )
+    return result
   }
 }
