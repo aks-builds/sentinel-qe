@@ -16,30 +16,29 @@ Full spec: `docs/superpowers/specs/2026-06-26-sentinel-design.md`
 ## Current Status
 
 **Phase:** Probe v1 (Days 6–15)
-**Day completed:** Day 11
+**Day completed:** Day 12
 **What was built:**
-- **Judge backend, first use** (design spec §12, resolved 2026-07-24): a new `ollama` Docker Compose service (`ollama/ollama` image, `ollama_data` volume) plus a pluggable `Judge` ABC (`apps/engine/sentinel_engine/judge/base.py`) and its only implementation, `OllamaJudge` (calls Ollama's `/api/generate` over plain `httpx`, promoted from a dev-only to a runtime dependency).
-- **Reasoning-stage hallucination detector** (`sentinel_engine/hallucination/reasoning.py`): `detect_reasoning_hallucination(judge, steps, conclusion)` — a chain-of-thought critic. Deliberately uses a **line-based response format** (`STEP <n>: SUPPORTED|UNSUPPORTED - <reason>`), not JSON — small open-weight models are unreliable at strict JSON, and this parses leniently line-by-line with a conservative fallback (a step with no parseable verdict line defaults to `UNSUPPORTED`, not silently skipped).
-- **New endpoint**: `POST /probe/hallucination/reasoning`, wired via FastAPI `Depends(get_judge)` so tests swap in a fake judge without a real Ollama server.
-- Built via 1 round of 2 parallel worktree-isolated tracks (`Judge`/`OllamaJudge`; the Docker Compose + `pyproject.toml`/`poetry.lock` change — fully disjoint, and the latter done directly by the controller since it needed a real `poetry lock` run, not delegated to a subagent), then the reasoning detector and endpoint tasks done directly and sequentially by the controller (each has a hard dependency on the previous).
-- Tests: 16/16 pytest passing (6 pre-existing + 2 judge + 5 detector + 3 endpoint).
-- **Manually verified end-to-end against a real, locally-pulled `llama3.2:3b` model** (first real LLM call anywhere in this project): sent a 3-step chain of thought where the final step falsely claims Paris has "50 million people." The model correctly flagged `hallucination_detected: true` and correctly cited Paris's real population (~2.1M city / ~12M metro) when rejecting that step. **Honest finding, not glossed over:** the model was inconsistent about crediting "general knowledge" — it also flagged the (true, textbook) claim "the capital of France is Paris" as unsupported, reasoning that no *prior step* stated it, even though the detector's prompt explicitly allows general-knowledge support. This is a real characteristic of a 3B model doing this task, not a bug in the code — worth keeping in mind for Days 12-14's detectors, which will hit the same judge.
+- **Execution-stage hallucination detector** (`sentinel_engine/hallucination/execution.py`): `detect_execution_hallucination(judge, task, available_tools, selected_tool, parameters_valid, parameter_errors)`. Deliberately does **not** re-implement parameter validation — that already exists correctly in both SDKs (Day 8) — it accepts the caller's already-known `parameters_valid`/`parameter_errors` (pulled from the trace's existing `tool_call` span attributes) and combines them with a **new, judged tool-selection check**: `hallucination_detected` is true if the wrong tool was selected *or* its parameters were invalid.
+- Same line-based-response lesson from Day 11 reused: `CORRECT_TOOL: <name>` / `REASON: <text>`, not JSON, parsed leniently with unparseable-response defaulting to "flag it."
+- **New endpoint**: `POST /probe/hallucination/execution`, same `Depends(get_judge)` pattern.
+- No parallelization this day — single detector feeding a single endpoint, both done directly by the controller, no subagents (a genuinely linear dependency chain, unlike Day 11's 2-track Round 1).
+- Tests: 24/24 pytest passing (16 pre-existing + 5 detector + 3 endpoint).
+- **Manually verified end-to-end against real `llama3.2:3b`**: gave it a lookup task with `issue_refund` deliberately selected instead of the obviously-correct `search_orders`. The model correctly returned `hallucination_detected: true` and `tool_selection_correct: false` — the core mechanism works. **Honest finding, not glossed over:** it named `correct_tool: "NONE"` instead of `search_orders`, even though the prompt explicitly reserves `NONE` for "no tool call was needed" and this task clearly needed one. So this 3B model reliably catches "you picked the wrong tool" but isn't always reliable at naming *which* tool would have been right — a real fidelity gap to keep in mind for any UI or later day that surfaces `correct_tool` to a human, not just the boolean flag.
 
 **Notes:**
-- The Ollama image + `llama3.2:3b` model (~4GB combined) both had to download on first use — expect this the first time any fresh environment runs this stack; the model persists in the `ollama_data` volume afterward.
-- `OLLAMA_URL` defaults to `http://localhost:11434` (host-run dev) and is set to `http://ollama:11434` for the `engine` container via Docker Compose `environment:` — same pattern as `ENGINE_URL`.
+- Ollama + `llama3.2:3b` are already running/pulled from Day 11 — no re-setup needed this session or future ones, the model persists in the `ollama_data` volume.
 - No mobile navigation yet — sidebar is desktop-only (unchanged since Day 3).
-- Repo is public: `github.com/aks-builds/sentinel-qe`; push again before ending the session if Day 11's commits haven't been pushed yet.
+- Repo is public: `github.com/aks-builds/sentinel-qe`; push again before ending the session if Day 12's commits haven't been pushed yet.
 
 ---
 
-## Next Session — Day 12
+## Next Session — Day 13
 
-**Plan file:** `docs/superpowers/plans/2026-07-08-day12-hallucination-execution.md` *(to be written)*
+**Plan file:** `docs/superpowers/plans/2026-07-09-day13-hallucination-perception-communication.md` *(to be written)*
 
-**Goal:** Hallucination engine — Execution stage (tool selection + parameter validation), per the design spec's Phase 2 Day 12 deliverable.
+**Goal:** Hallucination engine — Perception + Communication stage detectors, per the design spec's Phase 2 Day 13 deliverable (two detectors in one day — Perception: did the agent correctly interpret its input/retrieved context; Communication: does the final answer accurately reflect what was reasoned/retrieved).
 
 **Architecture decisions locked in:**
-- **Parameter validation is likely already covered**: Day 8's `tool_call()`/`toolCall()` SDK methods already validate declared-vs-actual parameters via the JSON-Schema-subset validator and emit the result in the trace's `attributes`. Day 12 may only need to add "tool selection" correctness (was the *right* tool chosen, not just were its parameters valid) — check whether this needs the judge at all before assuming it does; a lot of tool-selection checking can be rule-based (was the tool in an allow-list for this task type) rather than requiring an LLM call.
-- The `Judge`/`OllamaJudge` interface and the `llama3.2:3b` model are both already in place (Day 11) — reuse them, don't re-derive.
-- This is still Phase 2 (Probe v1, Days 6-15) — Day 13 (Perception + Communication stage detectors) and Day 14 (heatmap overlay UI) come after Day 12, not before.
+- The `Judge`/`OllamaJudge` interface, the `llama3.2:3b` model, and the line-based-response-format pattern are all already in place (Days 11-12) — reuse them for both new detectors, don't re-derive.
+- **Known model fidelity gaps to design around, not rediscover:** `llama3.2:3b` is inconsistent crediting general-knowledge support (Day 11) and inconsistent naming a "correct" alternative even when it correctly flags something as wrong (Day 12). Favor prompts/parsers that only need a **boolean-ish verdict per item** (like Days 11-12's `SUPPORTED`/`UNSUPPORTED` and the hallucination-detected flag) over prompts that need the model to *name* the ideal answer — the former has proven far more reliable than the latter across both days so far.
+- This is still Phase 2 (Probe v1, Days 6-15) — Day 14 (hallucination heatmap overlay on the trace timeline UI, tying Days 11-13's detectors into the Day 10 waterfall) comes after Day 13, not before.
