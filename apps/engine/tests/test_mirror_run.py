@@ -56,3 +56,44 @@ def test_run_suite_rejects_missing_fields():
     response = client.post("/mirror/run", json={"provider": "openai"})
 
     assert response.status_code == 422
+
+
+from sentinel_engine.judge.base import Judge
+from sentinel_engine.routers.mirror import get_judge
+
+
+class FakeJudge(Judge):
+    def __init__(self, response: str):
+        self.response = response
+
+    def complete(self, prompt: str) -> str:
+        return self.response
+
+
+def test_score_returns_structured_result():
+    app.dependency_overrides[get_judge] = lambda: FakeJudge(
+        "CORRECTNESS: 5\nRELEVANCE: 4\nTONE: 5\nREASON: Accurate and well-toned."
+    )
+    client = TestClient(app)
+
+    response = client.post(
+        "/mirror/score",
+        json={"prompt": "What is 2+2?", "response": "4"},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body == {
+        "correctness": 5,
+        "relevance": 4,
+        "tone": 5,
+        "reason": "Accurate and well-toned.",
+    }
+
+
+def test_score_rejects_missing_fields():
+    client = TestClient(app)
+
+    response = client.post("/mirror/score", json={"prompt": "p"})
+
+    assert response.status_code == 422

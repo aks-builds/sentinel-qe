@@ -1,11 +1,13 @@
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
+from sentinel_engine.judge import Judge, get_judge
 from sentinel_engine.mirror.providers.anthropic_provider import AnthropicProvider
 from sentinel_engine.mirror.providers.base import Provider
 from sentinel_engine.mirror.providers.google_provider import GoogleProvider
 from sentinel_engine.mirror.providers.grok_provider import GrokProvider
 from sentinel_engine.mirror.providers.openai_provider import OpenAIProvider
+from sentinel_engine.mirror.quality import score_quality
 from sentinel_engine.mirror.runner import run_prompt_suite
 
 router = APIRouter(prefix="/mirror", tags=["mirror"])
@@ -60,4 +62,28 @@ def run_suite(request: RunSuiteRequest, provider: Provider = Depends(get_provide
             )
             for r in results
         ],
+    )
+
+
+class ScoreResponseRequest(BaseModel):
+    prompt: str
+    response: str
+    expected_answer: str | None = None
+
+
+class ScoreResponseResponse(BaseModel):
+    correctness: int | None
+    relevance: int | None
+    tone: int | None
+    reason: str
+
+
+@router.post("/score", response_model=ScoreResponseResponse)
+def score(request: ScoreResponseRequest, judge: Judge = Depends(get_judge)) -> ScoreResponseResponse:
+    result = score_quality(judge, request.prompt, request.response, request.expected_answer)
+    return ScoreResponseResponse(
+        correctness=result.correctness,
+        relevance=result.relevance,
+        tone=result.tone,
+        reason=result.reason,
     )
