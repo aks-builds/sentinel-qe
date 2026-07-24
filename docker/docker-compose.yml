@@ -10,7 +10,12 @@ services:
       POSTGRES_PASSWORD: sentinel
       POSTGRES_DB: sentinel
     ports:
-      - '5432:5432'
+      # Host-side 5433, not 5432: a native Windows PostgreSQL service already
+      # listens on the host's 5432, so host tools (prisma migrate) connecting
+      # to "localhost:5432" would silently hit the wrong instance. Only the
+      # host mapping changes -- other containers on the compose network still
+      # reach this one at postgres:5432.
+      - '5433:5432'
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
