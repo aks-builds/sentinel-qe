@@ -46,4 +46,9 @@ describe('TraceWaterfall', () => {
     expect(names[0]).toContain('root-run')
     expect(names[1]).toContain('tool_call:search')
   })
+
+  it('renders a critique action for every span row', () => {
+    render(<TraceWaterfall spans={[ROOT, CHILD]} />)
+    expect(screen.getAllByRole('button', { name: /critique this span/i })).toHaveLength(2)
+  })
 })
