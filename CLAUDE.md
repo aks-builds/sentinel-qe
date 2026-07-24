@@ -15,36 +15,31 @@ Full spec: `docs/superpowers/specs/2026-06-26-sentinel-design.md`
 
 ## Current Status
 
-**Phase:** Probe v1 (Days 6–15)
-**Day completed:** Day 14
+**Phase:** Probe v1 (Days 6–15) — **PHASE 2 COMPLETE.** Phase 3 (Mirror v1, Days 16-22) starts next session.
+**Day completed:** Day 15
 **What was built:**
-- **`SpanCritique`**: a manual, on-demand "Critique this span" action rendered per row in `TraceWaterfall`. Picks one of the four Days 11-13 detector types, fills in whatever fields it needs (pre-filling `selected_tool`/`parameters_valid`/`parameter_errors` from a `tool_call:*` span's own `attributes` when available), and shows the result as a `Badge` + raw JSON. Deliberately manual/ephemeral, not automatic or persisted — resolved with the user before building: none of the four detectors can run against real trace data automatically, since the SDKs never capture the reasoning/context/message content they need, and extending the SDKs to do so is out of scope for this day.
-- **`POST /api/probe/critique/[type]`**: a thin, auth-gated web route that proxies to `{ENGINE_URL}/probe/hallucination/{type}` — the first time the browser-facing app actually calls the Python engine for something beyond the Day 4 health check.
-- `getSpansForTrace` (Day 10) now also returns each span's parsed `attributes`.
-- Built via 1 round of 3 parallel worktree-isolated tracks (ClickHouse attributes, the proxy route, the UI — all fully disjoint) with zero wiring needed afterward: `page.tsx` already passes `getSpansForTrace`'s result straight through to `TraceWaterfall`, so extending both independently composed automatically.
-- Tests: 74/74 vitest passing (67 pre-existing + 7 new). Type-check clean.
-- **The live smoke test surfaced the most important finding of the whole hallucination-engine arc (Days 11-14), and it revises Days 11-13's conclusions, not just adds to them.** Re-running the SAME unambiguous inputs multiple times through the real `llama3.2:3b` (not single-draw testing like Days 11-13 did) shows **all four detectors** have a real false-positive rate, not just Execution's "naming" quirk from Day 12:
-  - **Execution**, given an obviously-correct tool selection, was wrong or unparseable **4 out of 7** times (57%) — sometimes claiming `search_orders` "doesn't support looking up order history" (factually false — that's its exact stated purpose), sometimes failing to produce the `CORRECT_TOOL:` line at all.
-  - **Reasoning**, given a trivially true 2-step chain ("capital of France is Paris"), came back `hallucination_detected: true` on a retest, with nonsensical reasoning ("user input lacks sufficient context," "contradicts an earlier statement" — there was no such contradiction).
-  - **Perception** was solid on repeat testing (3/4 correct across this session's two rounds) but still had one outright unparseable response.
-  - Communication wasn't re-tested this session (Day 13's single draw was clean); treat that as unconfirmed at scale, not as a fourth "reliable" data point.
-  - **Revises the Day 11-12 lesson** ("boolean-ish verdicts are reliable, naming a correct answer is not") — that was true *directionally* but understated how often even the boolean verdicts themselves come back wrong or unparseable. `llama3.2:3b` is a genuinely unreliable judge at this task, not just imprecise at one sub-task.
-- **Practical implication, not yet acted on:** anyone using `SpanCritique` today should expect a meaningful chance of a wrong verdict on any single click, especially for Execution. A production version of this feature would need either a bigger/better model, a lower temperature, majority-vote-over-N-samples, or surfacing the parse-failure case distinctly from a real negative verdict in the UI (right now both look identical: a `destructive` badge). None of this was fixed today — Day 14's job was the UI plumbing, and this finding was made via that plumbing, not something to silently patch without the user weighing in on which fix (if any) is worth the added cost/complexity.
+- **API key authentication** (necessary, not optional — a CI job can't do an interactive session login): `User.apiKey` (lazily generated via `getOrCreateApiKey`, mirroring Day 9's `getOrCreateOrgId` pattern) and `getAuthenticatedUserId(request)` — tries a `Bearer` API key first, falls back to the NextAuth session cookie. All three existing Probe routes (`suites`, `suites/[id]/runs`, `runs/[id]`) now accept either.
+- **`probe-gate` GitHub Action** (`.github/actions/probe-gate/`): plain Node 20 JS action, zero npm dependencies (matching this project's convention). Two modes: `start` (resolve a suite by name, create a run, output its ID) and `check` (mark the run complete, evaluate a duration threshold, post a PR comment via the GitHub REST API, exit non-zero on failure). `hallucination-rate`/`cost-usd`/`score` inputs are accepted but explicitly documented as not yet enforced — the spec's CI/CD gate example (§8) assumes per-run scoring that has never been built (Days 9-14 never computed or persisted an aggregate score for a `TestRun`); resolved with the user beforehand to ship the gate mechanics now, scoped to what's real (run completion + duration), not to build a whole new scoring subsystem under "Day 15."
+- Built via 1 round of 2 parallel tracks (the Action — fully self-contained, worktree-isolated; the API-key/Prisma work — done directly by the controller, needed a live migration) then the 3-route wiring done directly and sequentially (small, precise, needed Task 1 merged first).
+- Tests: 85/85 vitest passing (77 pre-existing + 8 new) + 5/5 `node --test` for the Action's pure logic.
+- **Manually verified end-to-end, zero bugs found**: generated a real API key, ran the Action's `start` mode against the live web app (created a real `TestRun` via Bearer auth), ran `check` mode (confirmed it PATCHed the run to `COMPLETED` in Postgres, correctly skipped the PR comment outside a real GitHub Actions/PR context, printed a pass), then re-ran with `max-duration-seconds=0` and confirmed it correctly failed with exit code 1 and a clear message. The gate mechanics work exactly as designed.
 
 **Notes:**
-- Ollama + `llama3.2:3b` still running/pulled from Day 11 — no re-setup needed, but see the reliability finding above before trusting its verdicts for anything real.
+- No UI exists yet to generate/view a user's API key — the smoke test generated one directly via a Node script against Prisma. A future day (not scheduled in the current 50-day plan) would need a settings page for this before a real customer could use the Action without asking an engineer to hand-mint a key.
+- Ollama + `llama3.2:3b` still running/pulled from Day 11 — the Day 14 judge-reliability finding (all four hallucination detectors have real false-positive rates against this model) still stands and is unrelated to anything built today.
 - No mobile navigation yet — sidebar is desktop-only (unchanged since Day 3).
-- Repo is public: `github.com/aks-builds/sentinel-qe`; push again before ending the session if Day 14's commits haven't been pushed yet.
+- Repo is public: `github.com/aks-builds/sentinel-qe`; push again before ending the session if Day 15's commits haven't been pushed yet.
 
 ---
 
-## Next Session — Day 15
+## Next Session — Day 16 (Phase 3 begins: Mirror v1)
 
-**Plan file:** `docs/superpowers/plans/2026-07-11-day15-probe-cicd-gate.md` *(to be written)*
+**Plan file:** `docs/superpowers/plans/2026-07-12-day16-mirror-api-runner.md` *(to be written)*
 
-**Goal:** Probe CI/CD gate — GitHub Action, threshold config, PR comment posting, per the design spec's Phase 2 Day 15 deliverable. **Last day of Phase 2** — Phase 3 (Mirror v1, Days 16-22) begins after this.
+**Goal:** Mirror API runner — send prompt suites to OpenAI/Anthropic/Google/Grok APIs, per the design spec's Phase 3 Day 16 deliverable.
 
 **Architecture decisions locked in:**
-- **The judge reliability finding above is directly relevant to Day 15's threshold-gate design.** A CI gate that blocks merges on "hallucination rate > X%" needs to account for a judge that's wrong or unparseable a meaningful fraction of the time on its own — consider whether Day 15 needs a way to distinguish a genuine detected hallucination from a parse-failure/judge-uncertainty case (right now they're indistinguishable in the API response), or whether that's explicitly deferred with the gate treating both the same for now (a defensible MVP choice, but should be a stated decision, not an oversight).
-- Mirror's live-site-automation scope constraint (design spec §13, fixtures not live sites for Days 20-21) becomes relevant starting Day 16, not this day.
-- This is the last day before Phase 3; there's no Day 16 architecture note carried over yet since Mirror v1 hasn't been scoped in detail beyond the spec's own day-by-day table.
+- **Mirror is explicitly exempt from the local-first/self-hosted judge constraint** (design spec §12, resolved Day 9): calling these external providers *is* the feature under test (the customer already sends data to them as part of normal usage), not an internal scoring shortcut like Probe/Guard/Cognify/Reach's judge. Real provider API calls are the whole point here.
+- **No external provider API keys exist anywhere in this project yet.** Day 16 can be built and unit-tested with mocked HTTP clients, but cannot be verified end-to-end (a real smoke test against a live provider) without the user supplying at least one of OpenAI/Anthropic/Google/Grok's API keys. Flag this plainly when Day 16 reaches its smoke-test step rather than skipping verification silently.
+- Mirror's later UI-automation days (20-21, Playwright against ChatGPT.com/Claude.ai) build against local test fixtures, not live sites (design spec §13, resolved Day 9) — not relevant yet for Day 16, which is pure API calls, but keep in mind for Days 20-21.
+- This is the first day of Phase 3 (Days 16-22) — no Probe-specific carryover architecture applies; Mirror is a new module with its own data shape (provider, prompt, response, cost) that hasn't been designed in Prisma/ClickHouse yet.
