@@ -60,12 +60,13 @@ export type TraceSpan = {
   name: string
   startTime: string
   endTime: string
+  attributes: Record<string, unknown>
 }
 
 export async function getSpansForTrace(traceId: string): Promise<TraceSpan[]> {
   const result = await clickhouse.query({
     query: `
-      SELECT span_id, parent_span_id, name, start_time, end_time
+      SELECT span_id, parent_span_id, name, start_time, end_time, attributes
       FROM traces
       WHERE trace_id = {traceId:String}
       ORDER BY start_time ASC
@@ -79,6 +80,7 @@ export async function getSpansForTrace(traceId: string): Promise<TraceSpan[]> {
     name: string
     start_time: string
     end_time: string
+    attributes: string
   }>()
   return rows.map((row) => ({
     spanId: row.span_id,
@@ -86,6 +88,7 @@ export async function getSpansForTrace(traceId: string): Promise<TraceSpan[]> {
     name: row.name,
     startTime: row.start_time,
     endTime: row.end_time,
+    attributes: JSON.parse(row.attributes || '{}'),
   }))
 }
 
