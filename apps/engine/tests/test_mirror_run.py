@@ -2,7 +2,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from sentinel_engine.main import app
-from sentinel_engine.mirror.providers.base import Provider, ProviderResponse
+from sentinel_engine.mirror.providers.base import Message, Provider, ProviderResponse
 from sentinel_engine.routers.mirror import get_provider
 
 
@@ -11,7 +11,8 @@ class FakeProvider(Provider):
         self.responses = responses
         self.calls: list[str] = []
 
-    def complete(self, prompt: str) -> ProviderResponse:
+    def complete_conversation(self, messages: list[Message]) -> ProviderResponse:
+        prompt = next(m.content for m in reversed(messages) if m.role == "user")
         self.calls.append(prompt)
         return self.responses[len(self.calls) - 1]
 
