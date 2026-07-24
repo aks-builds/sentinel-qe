@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html>
+<head><title>Claude Fixture</title></head>
+<body>
+<textarea id="composer-input"></textarea>
+<button id="submit-button">Submit</button>
+<div id="messages"></div>
+<script>
+let turn = 0;
+document.getElementById("submit-button").addEventListener("click", () => {
+  turn += 1;
+  const input = document.getElementById("composer-input").value;
+  const bubble = document.createElement("div");
+  bubble.className = "assistant-message";
+  bubble.setAttribute("data-turn", String(turn));
+  bubble.textContent = "Claude fixture reply to: " + input;
+  document.getElementById("messages").appendChild(bubble);
+});
+</script>
+</body>
+</html>

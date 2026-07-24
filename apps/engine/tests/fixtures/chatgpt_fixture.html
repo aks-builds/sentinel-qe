@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html>
+<head><title>ChatGPT Fixture</title></head>
+<body>
+<textarea id="prompt-input"></textarea>
+<button id="send-button">Send</button>
+<div id="conversation"></div>
+<script>
+let turn = 0;
+document.getElementById("send-button").addEventListener("click", () => {
+  turn += 1;
+  const input = document.getElementById("prompt-input").value;
+  const bubble = document.createElement("div");
+  bubble.className = "response-bubble";
+  bubble.setAttribute("data-turn", String(turn));
+  bubble.textContent = "ChatGPT fixture reply to: " + input;
+  document.getElementById("conversation").appendChild(bubble);
+});
+</script>
+</body>
+</html>
