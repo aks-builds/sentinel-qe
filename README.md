@@ -3,15 +3,19 @@
 > Self-hosted AI Quality Engineering platform — trace the agents you build, black-box test the AI products you consume, red-team them, benchmark them against human baselines, and audit them for accessibility. All in one deployment. No data leaves your infrastructure.
 
 > [!NOTE]
-> **Status: early, in-progress build (Day 22 of a 50-day plan).** **Probe**
+> **Status: early, in-progress build (Day 24 of a 50-day plan).** **Probe**
 > (agents you build) is functional end-to-end: trace capture via both SDKs,
 > tool-call schema validation, a 4-stage hallucination detector backed by a
 > self-hosted LLM judge, and a CI/CD quality gate. **Mirror** (AI products
 > you consume) is functional end-to-end too: multi-provider API runner,
 > LLM-judge quality scoring, model-drift detection, a suite-builder UI, and
 > Playwright-driven UI automation (against local fixtures for now — see the
-> design spec for the live-site rollout plan). **Guard, Cognify, and Reach
-> are design-complete but not yet implemented.** See the
+> design spec for the live-site rollout plan). **Guard** (security) has begun:
+> a 23-prompt single-turn attack library and a live multi-turn attack engine
+> (Crescendo, Sequential Jailbreak, Tree Jailbreaking) with self-hosted-judge
+> compliance scoring — no external provider API keys exist yet, so real-target
+> runs are untested end-to-end. **Cognify and Reach are design-complete but
+> not yet implemented.** See the
 > [design spec](docs/superpowers/specs/2026-06-26-sentinel-design.md) for the
 > full plan. Expect breaking changes before v1.
 
@@ -39,8 +43,8 @@ flowchart TB
     end
 
     subgraph ENGINE["Sentinel Engine — Python / FastAPI"]
-        BUILT["Built: Hallucination Attribution · Self-hosted LLM Judge<br/>External AI API Runner · Playwright Controller"]
-        PLANNED["Planned: Red-team · Cognitive Benchmark · Accessibility Scorer"]
+        BUILT["Built: Hallucination Attribution · Self-hosted LLM Judge<br/>External AI API Runner · Playwright Controller · Red-team Attack Engine"]
+        PLANNED["Planned: Cognitive Benchmark · Accessibility Scorer"]
     end
 
     subgraph DATA["Data Layer"]
