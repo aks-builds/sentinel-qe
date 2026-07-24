@@ -11,7 +11,7 @@ describe('authConfig.callbacks.session', () => {
     } as Session
     const token = { sub: 'user-123' } as JWT
 
-    const result = await authConfig.callbacks!.session!({ session, token } as never)
+    const result = (await authConfig.callbacks!.session!({ session, token } as never)) as Session
 
     expect(result.user.id).toBe('user-123')
   })
