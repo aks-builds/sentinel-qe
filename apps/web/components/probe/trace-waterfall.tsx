@@ -1,9 +1,12 @@
+import { SpanCritique } from './span-critique'
+
 export type TraceSpan = {
   spanId: string
   parentSpanId: string
   name: string
   startTime: string
   endTime: string
+  attributes?: Record<string, unknown>
 }
 
 function parseClickHouseTime(value: string): number {
@@ -66,6 +69,13 @@ export function TraceWaterfall({ spans }: { spans: TraceSpan[] }) {
               style={{ marginLeft: `${offsetPercent}%`, width: `${widthPercent}%` }}
             />
           </div>
+          <SpanCritique
+            toolName={typeof span.attributes?.toolName === 'string' ? span.attributes.toolName : undefined}
+            parametersValid={typeof span.attributes?.valid === 'boolean' ? span.attributes.valid : undefined}
+            parameterErrors={
+              Array.isArray(span.attributes?.errors) ? (span.attributes.errors as string[]) : undefined
+            }
+          />
         </li>
       ))}
     </ul>
