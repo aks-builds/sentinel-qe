@@ -15,31 +15,31 @@ Full spec: `docs/superpowers/specs/2026-06-26-sentinel-design.md`
 
 ## Current Status
 
-**Phase:** Mirror v1 (Days 16–22) — Phase 3, first day.
-**Day completed:** Day 16
+**Phase:** Mirror v1 (Days 16–22) — Phase 3.
+**Day completed:** Day 17
 **What was built:**
-- **`Provider` ABC + `ProviderResponse`** (`sentinel_engine/mirror/providers/base.py`) — mirrors Day 11's `Judge` ABC shape (one method, `complete(prompt) -> ProviderResponse`).
-- **Four provider implementations**, each calling the real chat-completion endpoint over plain `httpx` (no provider SDKs): `OpenAIProvider`, `AnthropicProvider`, `GoogleProvider` (each with their own genuinely different request/response shape), and `GrokProvider` (subclasses `OpenAIProvider` — xAI's API is deliberately OpenAI-compatible, a legitimate reuse since the two contracts are identical, not premature abstraction).
-- **`run_prompt_suite(provider, prompts)`** — a thin loop, and **`POST /mirror/run`** tying it together via the same `Depends(get_provider)` pattern as Days 11-13's `get_judge()`.
-- Built via 1 direct task (the `Provider` ABC, tiny, needed by everything else) → 3 parallel worktree tracks (OpenAI, Anthropic, Google — fully independent) → 1 direct task (Grok, which subclasses OpenAI so couldn't be dispatched until that merged) → 1 direct task (runner + endpoint, needed all four providers merged).
-- Tests: 54/54 pytest passing (37 pre-existing + 17 new). All mocked (`unittest.mock.patch("httpx.post")`, matching Day 11's `OllamaJudge` test pattern) — confirmed zero real network activity (14 Mirror tests ran in 0.14s).
-- **No live smoke test today — a real, acknowledged gap, resolved with the user before building, not a silent omission.** No OpenAI/Anthropic/Google/xAI API keys exist anywhere in this project. Every provider's exact request/response shape is based on each API's documented format as of this session, not confirmed against a real live response. If any provider's actual API differs from what these tests assume, nothing here would catch it. **Do not treat Day 16 as "fully verified" the way every other day since Day 8 has been** — it's unit-verified only, pending the user supplying a real key for at least one provider.
+- **`get_judge` moved** from `routers/probe.py` to `sentinel_engine/judge/dependency.py` (re-exported via `sentinel_engine.judge`) — a small, necessary refactor so Mirror could use the same local judge without an awkward router-to-router import. Transparent to Days 11-13's existing tests (same function object, different file).
+- **`score_quality(judge, prompt, response, expected_answer=None)`**: scores a Mirror response on `CORRECTNESS`/`RELEVANCE`/`TONE` (1-5 scale) plus a `reason`, via the same line-based response format as Days 11-14 — uses the **local** Ollama judge, not one of Day 16's four external providers, since scoring quality is an internal Sentinel operation (calling a second external provider to grade the first would leak the customer's test data to a party beyond the one already under test).
+- **New endpoint**: `POST /mirror/score`.
+- Built via 1 round of 2 parallel tracks (the `get_judge` refactor; `score_quality`'s pure logic — fully disjoint, and the pure-logic task never even imports `get_judge`) then the endpoint done directly (needed both merged).
+- Tests: 62/62 pytest passing (54 pre-existing + 8 new).
+- **Live smoke test against real Ollama, 6 calls across 2 scenarios (3 draws each) — the most reliable judge-backed result of the whole hallucination/scoring arc so far.** A genuinely correct response ("Paris") scored 5/5/5 on all three dimensions, consistently, across all 3 draws, with accurate reasoning every time. A genuinely wrong response ("Berlin," with a fabricated population figure) scored correctness 0-1 and relevance 2 across all 3 draws, every single reason correctly identifying that Berlin is Germany's capital, not France's. **Small, honestly-recorded quirk:** one draw returned `correctness: 0`, technically below the prompt's stated 1-5 floor — still correctly signaling "bad," not a wrong verdict, just an unenforced range. Unlike Days 11-12's detectors, this specific task (quality scoring with a decisive right/wrong answer available) appears meaningfully more reliable than the more abstract "hallucination in an isolated reasoning chain" tasks — worth remembering as a real, positive data point, not just cataloguing failures.
 
 **Notes:**
-- Cost tracking (USD) was deliberately not built today — Day 16's specific deliverable is the API runner itself; per-provider pricing tables are their own scope, left for whenever a future day actually needs them. Token counts (`input_tokens`/`output_tokens`) are captured now since they're a free byproduct of parsing each response.
-- Ollama + `llama3.2:3b` still running/pulled from Day 11 — unrelated to today's work (Mirror calls external providers directly, not the local judge).
+- Mirror is still entirely stateless — Days 16-17 are both pure request/response endpoints, nothing persisted anywhere. Day 18 (drift detection) will need a place to store baseline runs; nothing exists for that yet.
+- No external provider API keys still — unrelated to today, since Day 17 uses the local judge, not Mirror's providers.
 - No mobile navigation yet — sidebar is desktop-only (unchanged since Day 3).
-- Repo is public: `github.com/aks-builds/sentinel-qe`; push again before ending the session if Day 16's commits haven't been pushed yet.
+- Repo is public: `github.com/aks-builds/sentinel-qe`; push again before ending the session if Day 17's commits haven't been pushed yet.
 
 ---
 
-## Next Session — Day 17
+## Next Session — Day 18
 
-**Plan file:** `docs/superpowers/plans/2026-07-13-day17-mirror-llm-judge-scorer.md` *(to be written)*
+**Plan file:** `docs/superpowers/plans/2026-07-14-day18-mirror-drift-detection.md` *(to be written)*
 
-**Goal:** LLM judge scorer — evaluate a Mirror provider response's quality (correctness, relevance, tone), per the design spec's Phase 3 Day 17 deliverable.
+**Goal:** Model drift detection — compare a current run against a stored baseline and flag regressions, per the design spec's Phase 3 Day 18 deliverable.
 
 **Architecture decisions locked in:**
-- **This is a different kind of "judge" than Day 16's providers, and should very likely use the local Ollama judge (design spec §12), not one of Day 16's four external providers.** Scoring a Mirror response's quality is an internal Sentinel operation, not the external call under test — grading Provider A's output by calling Provider B (or the same provider) would silently violate the "no data leaves the deployment" principle for what is, at that point, the customer's own test data being sent to a second external party. Reuse `Judge`/`OllamaJudge` from Day 11, don't build a new judge abstraction.
-- **Carry forward Day 14's finding**: `llama3.2:3b` has real, non-trivial false-positive/unparseable rates on structured verdicts. Test any new scorer with repeated draws on the same input (at least 3-5), not a single one — Days 11 and 13 each drew an overly optimistic conclusion from exactly one lucky draw before Day 14 corrected it.
-- Still no external provider API keys — if Day 17's scorer needs a REAL Mirror response to score (as opposed to a synthetic/fixture one for unit tests), its own live verification will hit the same gap Day 16 did. Plan for that explicitly rather than assuming it away.
+- **This is the first day Mirror needs to persist anything.** Days 16-17 are both stateless; nothing about a run, a prompt, a response, or a score has ever been saved to Postgres or ClickHouse. Decide the storage shape deliberately (a new Prisma model, mirroring Probe's `TestSuite`/`TestRun` pattern from Day 9, is the most consistent choice) rather than bolting drift detection onto an ad-hoc structure.
+- Reuse `score_quality` (Day 17) as the metric drift is measured against — don't invent a second scoring mechanism.
+- Still no external provider API keys — if Day 18 needs a REAL Mirror response for its own live verification (as opposed to fixture data), it will hit the same gap Day 16 did.
