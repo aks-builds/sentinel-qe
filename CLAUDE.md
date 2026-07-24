@@ -20,30 +20,30 @@ Full spec: `docs/superpowers/specs/2026-06-26-sentinel-design.md`
 
 ## Current Status
 
-**Phase:** Mirror v1 (Days 16–22) — Phase 3.
-**Day completed:** Day 21
+**Phase:** Mirror v1 (Days 16–22) — Phase 3. **COMPLETE as of today.**
+**Day completed:** Day 22 — **last day of Phase 3.**
 **What was built:**
-- **`ConversationSession`** (`sentinel_engine/playwright_service/conversation.py`): a context manager holding one persistent Playwright page across multiple turns — `send_message(text)` fills the input, clicks send, waits for that turn's response element via a `data-turn` counter selector (deterministic, never a fixed sleep), returns the extracted text. Two factory functions, `chatgpt_session()`/`claude_session()`, pre-configure genuinely different selectors per product.
-- **Two fixture pages** (`tests/fixtures/chatgpt_fixture.html`, `claude_fixture.html`), each with its own element IDs/classes and a small embedded JS handler that appends a numbered canned reply on click — real DOM interaction, fully offline and deterministic.
-- **`POST /mirror/ui/conversation`**, DI'd the same way Day 20's `/mirror/ui/navigate` already is (`get_conversation_runner`) — no test in the suite launches a real browser. 75/75 engine tests passing (66 pre-existing + 9 new).
-- **No subagent dispatch this day either** — same small-sequential-chain judgment as Day 20 and Day 12.
-- **Live-verified with real multi-turn conversations against both fixtures** — direct calls (`chatgpt_session` sent 2 messages, got back turn-1 and turn-2's distinct correct replies, not a stale one; `claude_session` sent 1 message and got its own correctly-different reply from an independent browser/page) and through the actual running HTTP endpoint (`curl POST /mirror/ui/conversation` against the ChatGPT fixture, 2 messages, both responses correct). This is the "conversation state" verification the design spec's line 41 calls for. Used `Path.resolve().as_uri()` for every fixture URL per Day 20's Windows `file://` lesson — no repeat of that bug.
+- **`/api/mirror/ui/[action]` proxy route** — generalizes Day 14's `/api/probe/critique/[type]` pattern for Days 20-21's engine endpoints (`navigate`, `conversation`).
+- **`RecordRunForm` gained an API-vs-UI mode toggle.** API mode is Day 19's existing manual per-prompt entry, unchanged. UI mode adds a product select + fixture URL field; on submit it calls the new proxy once per suite prompt (one independent single-turn conversation per prompt — matching how API mode already treats each prompt as an independent test case), collects the real responses with null scores, then feeds them into the *same* `runs`/`results` routes Day 18 already built. No schema changes.
+- **Genuine parallel dispatch, first since Day 19** — Task 1 (proxy route) and Task 2 (form) touched disjoint files and were built as 2 parallel worktree agents; merged cleanly, 133/133 tests (127 pre-existing + 4 proxy + ~2 net-new form tests — the plan's own test-count estimate for Task 2 was off by one, a harmless recurring planning-estimate quirk, not a real defect).
+- **Real bug caught during the live smoke test, not by any unit test:** the proxy route's first draft used session-only `auth()` (mirroring Day 14's OLDER pattern) instead of Mirror's own established dual Bearer/session `getAuthenticatedUserId()` (introduced Day 15, used by every other Mirror route). A live curl call with an API key correctly got `401 Unauthorized` — caught immediately, fixed, re-verified live. **Lesson: when generalizing an existing pattern for a different module, check which auth convention that module actually uses today, not just the pattern's original source.**
+- **Live-verified the full real HTTP hop** (web → proxy → engine → real headless Chromium against the ChatGPT fixture) — `curl -H "Authorization: Bearer ..." POST /api/mirror/ui/conversation` returned the correct fixture reply. **Did not verify through an actual rendered browser session** — same known gap as Day 19 (no known-password test user exists); flagged again, not silently dropped.
+- **README.md audit (ad hoc, mid-session, at the user's explicit request):** found and fixed real staleness — the status callout still said "Day 7," the tech-stack table falsely claimed the engine uses SQLAlchemy (grepped: zero hits, the engine has never had DB access), and the architecture diagram was a hand-typed ASCII box-drawing block duplicated as a PNG, both misaligned/broken when rendered. Replaced with a single Mermaid diagram (renders natively on GitHub, no monospace-alignment risk) with an explicit Built/Planned split in the Engine subgraph. **New standing hard rule added to this file's Session Protocol: check README.md for staleness at the end of every remaining day (Day 23-50), not just when asked.**
 
 **Notes:**
-- No external provider API keys still exist — unrelated to today.
+- No external provider API keys exist for API mode; UI mode is fixtures-only (no real ChatGPT.com/Claude.ai) — both gaps carried forward unchanged.
 - No mobile navigation yet — sidebar is desktop-only (unchanged since Day 3).
-- Repo is public: `github.com/aks-builds/sentinel-qe`; push again before ending the session if Day 21's commits haven't been pushed yet.
-- **This closes out the automation-building half of Phase 3.** Day 22 is the last Mirror v1 day — wiring what Days 16-21 built into an actual UI toggle.
+- Repo is public: `github.com/aks-builds/sentinel-qe`; push again before ending the session if Day 22's commits haven't been pushed yet.
 
 ---
 
-## Next Session — Day 22
+## Next Session — Day 23 (Phase 4 — Guard v1, Days 23-30, BEGINS)
 
-**Plan file:** `docs/superpowers/plans/2026-07-18-day22-mirror-ui-suite-builder.md` *(to be written)*
+**Plan file:** `docs/superpowers/plans/2026-07-19-day23-guard-attack-library.md` *(to be written)*
 
-**Goal:** Mirror UI test suite builder with an API-vs-UI mode toggle, per the design spec's Phase 3 Day 22 deliverable — **the last day of Phase 3 (Mirror v1, Days 16-22)**.
+**Goal:** Adversarial attack library — 23 single-turn attack prompts, categorized, per the design spec's Phase 4 Day 23 deliverable.
 
 **Architecture decisions locked in:**
-- Surface Days 20-21's engine endpoints (`/mirror/ui/navigate`, `/mirror/ui/conversation`) from the web app — likely a new `/api/mirror/ui/*` proxy route in `apps/web`, generalizing the existing Day 14 proxy pattern (`/api/probe/critique/[type]` → engine) rather than inventing a new one.
-- Day 19's `RecordRunForm` already covers "API mode" (manual/already-computed results). Day 22's toggle adds a second, genuinely new "UI mode" path that drives the Day 21 fixture-based conversation flow through the new proxy route — both modes end up writing to the same `MirrorResult` rows Day 18 already persists, so no schema changes should be needed.
-- Still fixtures-only for UI mode (no real ChatGPT.com/Claude.ai, no real test accounts) and still no external provider API keys for API mode — both gaps carried forward unchanged, not Day 22's job to close.
+- **This is an entirely new module with zero prior code to build on** — unlike every Mirror day, there's no existing router/schema/component to extend. Expect the first task to be a data/content task (the attack-prompt library itself, likely JSON/YAML checked in) plus a loader, not an integration task.
+- Follow the design spec's own attack categorization (check §on Guard/adversarial attacks in the full spec) rather than inventing a taxonomy from scratch.
+- **Remember the new README hard rule** — Guard is currently listed as 100% "Planned" in the architecture diagram's Engine subgraph; move it once real Guard capability lands (likely not Day 23 itself, since Day 23 is just the attack library/data, not yet a detector — check before flipping the label).
