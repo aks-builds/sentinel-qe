@@ -22,7 +22,7 @@ def test_complete_posts_generate_content_and_parses_response(mock_post):
     mock_post.assert_called_once_with(
         "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent",
         params={"key": "AIza-test"},
-        json={"contents": [{"parts": [{"text": "say hi"}]}]},
+        json={"contents": [{"role": "user", "parts": [{"text": "say hi"}]}]},
         timeout=60.0,
     )
 

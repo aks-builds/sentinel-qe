@@ -3,6 +3,12 @@ from dataclasses import dataclass
 
 
 @dataclass
+class Message:
+    role: str
+    content: str
+
+
+@dataclass
 class ProviderResponse:
     text: str
     input_tokens: int | None = None
@@ -19,5 +25,9 @@ class Provider(ABC):
     """
 
     @abstractmethod
+    def complete_conversation(self, messages: list[Message]) -> ProviderResponse:
+        """Send the full conversation history so far and return the next response."""
+
     def complete(self, prompt: str) -> ProviderResponse:
-        """Send a single prompt to the provider and return its response."""
+        """Send a single prompt with no prior history."""
+        return self.complete_conversation([Message(role="user", content=prompt)])

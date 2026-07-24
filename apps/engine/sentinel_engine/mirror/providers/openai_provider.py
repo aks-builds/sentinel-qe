@@ -2,7 +2,7 @@ import os
 
 import httpx
 
-from .base import Provider, ProviderResponse
+from .base import Message, Provider, ProviderResponse
 
 
 class OpenAIProvider(Provider):
@@ -12,11 +12,14 @@ class OpenAIProvider(Provider):
         self.api_key = api_key or os.environ.get("OPENAI_API_KEY", "")
         self.model = model
 
-    def complete(self, prompt: str) -> ProviderResponse:
+    def complete_conversation(self, messages: list[Message]) -> ProviderResponse:
         response = httpx.post(
             f"{self.base_url}/chat/completions",
             headers={"Authorization": f"Bearer {self.api_key}"},
-            json={"model": self.model, "messages": [{"role": "user", "content": prompt}]},
+            json={
+                "model": self.model,
+                "messages": [{"role": message.role, "content": message.content} for message in messages],
+            },
             timeout=60.0,
         )
         response.raise_for_status()
