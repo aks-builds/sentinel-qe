@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { auth } from '@/auth'
+import { getAuthenticatedUserId } from '@/lib/auth-request'
 
 const VALID_ACTIONS = ['navigate', 'conversation']
 
@@ -7,8 +7,8 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ action: string }> }
 ) {
-  const session = await auth()
-  if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const userId = await getAuthenticatedUserId(request)
+  if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { action } = await params
   if (!VALID_ACTIONS.includes(action)) {

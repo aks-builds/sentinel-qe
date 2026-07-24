@@ -1,14 +1,14 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
-const mockAuth = vi.fn()
-vi.mock('@/auth', () => ({ auth: mockAuth }))
+const mockGetAuthenticatedUserId = vi.fn()
+vi.mock('@/lib/auth-request', () => ({ getAuthenticatedUserId: mockGetAuthenticatedUserId }))
 
 describe('POST /api/mirror/ui/[action]', () => {
   const originalFetch = global.fetch
   const originalEnv = process.env.ENGINE_URL
 
   beforeEach(() => {
-    mockAuth.mockReset()
+    mockGetAuthenticatedUserId.mockReset()
     process.env.ENGINE_URL = 'http://engine:8000'
   })
 
@@ -18,7 +18,7 @@ describe('POST /api/mirror/ui/[action]', () => {
   })
 
   it('returns 401 when unauthenticated', async () => {
-    mockAuth.mockResolvedValue(null)
+    mockGetAuthenticatedUserId.mockResolvedValue(null)
     const { POST } = await import('./route')
 
     const response = await POST(new Request('http://localhost', { method: 'POST', body: '{}' }), {
@@ -29,7 +29,7 @@ describe('POST /api/mirror/ui/[action]', () => {
   })
 
   it('returns 404 for an unknown action', async () => {
-    mockAuth.mockResolvedValue({ user: { id: 'user-1' } })
+    mockGetAuthenticatedUserId.mockResolvedValue('user-1')
     const { POST } = await import('./route')
 
     const response = await POST(new Request('http://localhost', { method: 'POST', body: '{}' }), {
@@ -40,7 +40,7 @@ describe('POST /api/mirror/ui/[action]', () => {
   })
 
   it('returns 400 for a body that is not valid JSON', async () => {
-    mockAuth.mockResolvedValue({ user: { id: 'user-1' } })
+    mockGetAuthenticatedUserId.mockResolvedValue('user-1')
     const { POST } = await import('./route')
 
     const response = await POST(new Request('http://localhost', { method: 'POST', body: 'not json' }), {
@@ -51,7 +51,7 @@ describe('POST /api/mirror/ui/[action]', () => {
   })
 
   it('forwards the request body to the engine and returns its response', async () => {
-    mockAuth.mockResolvedValue({ user: { id: 'user-1' } })
+    mockGetAuthenticatedUserId.mockResolvedValue('user-1')
     const mockFetch = vi.fn().mockResolvedValue({
       status: 200,
       json: async () => ({ responses: ['hi'] }),
