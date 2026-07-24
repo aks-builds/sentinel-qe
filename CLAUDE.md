@@ -16,30 +16,35 @@ Full spec: `docs/superpowers/specs/2026-06-26-sentinel-design.md`
 ## Current Status
 
 **Phase:** Probe v1 (Days 6–15)
-**Day completed:** Day 13
+**Day completed:** Day 14
 **What was built:**
-- **Perception-stage detector** (`sentinel_engine/hallucination/perception.py`): `detect_perception_hallucination(judge, context, claims)` — per-claim `SUPPORTED`/`UNSUPPORTED` verdicts against *only the given context* (unlike Day 11's reasoning detector, general knowledge does NOT count as support here — perception means correctly reading what was actually given). Structurally mirrors Day 11's reasoning detector almost exactly (same line format, same lenient per-line parsing, same conservative unparseable-defaults-to-flagged behavior).
-- **Communication-stage detector** (`sentinel_engine/hallucination/communication.py`): `detect_communication_hallucination(judge, internal_facts, final_message)` — a single holistic `FAITHFUL`/`UNFAITHFUL` verdict (not per-item, since faithfulness is inherently a whole-message judgment). Deliberately kept to a boolean-ish ask per the Day 11-12 reliability lesson, not "name what the message should have said."
-- Two new endpoints: `POST /probe/hallucination/perception`, `POST /probe/hallucination/communication`.
-- Built via 1 round of 2 parallel worktree-isolated tracks (perception, communication — fully disjoint, no shared code), then the two endpoints done directly and sequentially by the controller (small, both need both detectors merged first).
-- Tests: 37/37 pytest passing (24 pre-existing + 5 perception + 4 communication + 4 endpoint).
-- **Manually verified end-to-end against real `llama3.2:3b`, both came back clean — no fidelity gaps this time, unlike Days 11-12.** Perception: given a context stating an order was "delivered" and a false claim that it was "cancelled and refunded," correctly flagged `hallucination_detected: true` on the false claim (the true claim's *verdict* was also correct, though its explanation text was a bit awkwardly worded — a minor phrasing quirk, not a wrong answer). Communication: given internal facts saying a refund "will take 5-7 business days" and a final message claiming "the money is already in your account," correctly flagged `hallucination_detected: true` with an accurate, precise reason citing the omitted timeframe.
-- **All four of the design spec's Reasoning/Execution/Perception/Communication hallucination stages now exist as standalone, judge-backed (or judge+deterministic-combined) FastAPI endpoints.** None of them read from real trace data automatically yet — each is a standalone endpoint taking an explicit request body. **Observed gap in the original 50-day plan, not fixed unilaterally:** the design spec's module description lists a 5th stage, "Memorization," as part of the hallucination taxonomy, but the Phase 2 day-by-day table (Days 11-15) never allocates it a day — only Reasoning/Execution/Perception/Communication get one. Flagging this for the user's awareness; not adding unplanned scope to fill the gap without being asked.
+- **`SpanCritique`**: a manual, on-demand "Critique this span" action rendered per row in `TraceWaterfall`. Picks one of the four Days 11-13 detector types, fills in whatever fields it needs (pre-filling `selected_tool`/`parameters_valid`/`parameter_errors` from a `tool_call:*` span's own `attributes` when available), and shows the result as a `Badge` + raw JSON. Deliberately manual/ephemeral, not automatic or persisted — resolved with the user before building: none of the four detectors can run against real trace data automatically, since the SDKs never capture the reasoning/context/message content they need, and extending the SDKs to do so is out of scope for this day.
+- **`POST /api/probe/critique/[type]`**: a thin, auth-gated web route that proxies to `{ENGINE_URL}/probe/hallucination/{type}` — the first time the browser-facing app actually calls the Python engine for something beyond the Day 4 health check.
+- `getSpansForTrace` (Day 10) now also returns each span's parsed `attributes`.
+- Built via 1 round of 3 parallel worktree-isolated tracks (ClickHouse attributes, the proxy route, the UI — all fully disjoint) with zero wiring needed afterward: `page.tsx` already passes `getSpansForTrace`'s result straight through to `TraceWaterfall`, so extending both independently composed automatically.
+- Tests: 74/74 vitest passing (67 pre-existing + 7 new). Type-check clean.
+- **The live smoke test surfaced the most important finding of the whole hallucination-engine arc (Days 11-14), and it revises Days 11-13's conclusions, not just adds to them.** Re-running the SAME unambiguous inputs multiple times through the real `llama3.2:3b` (not single-draw testing like Days 11-13 did) shows **all four detectors** have a real false-positive rate, not just Execution's "naming" quirk from Day 12:
+  - **Execution**, given an obviously-correct tool selection, was wrong or unparseable **4 out of 7** times (57%) — sometimes claiming `search_orders` "doesn't support looking up order history" (factually false — that's its exact stated purpose), sometimes failing to produce the `CORRECT_TOOL:` line at all.
+  - **Reasoning**, given a trivially true 2-step chain ("capital of France is Paris"), came back `hallucination_detected: true` on a retest, with nonsensical reasoning ("user input lacks sufficient context," "contradicts an earlier statement" — there was no such contradiction).
+  - **Perception** was solid on repeat testing (3/4 correct across this session's two rounds) but still had one outright unparseable response.
+  - Communication wasn't re-tested this session (Day 13's single draw was clean); treat that as unconfirmed at scale, not as a fourth "reliable" data point.
+  - **Revises the Day 11-12 lesson** ("boolean-ish verdicts are reliable, naming a correct answer is not") — that was true *directionally* but understated how often even the boolean verdicts themselves come back wrong or unparseable. `llama3.2:3b` is a genuinely unreliable judge at this task, not just imprecise at one sub-task.
+- **Practical implication, not yet acted on:** anyone using `SpanCritique` today should expect a meaningful chance of a wrong verdict on any single click, especially for Execution. A production version of this feature would need either a bigger/better model, a lower temperature, majority-vote-over-N-samples, or surfacing the parse-failure case distinctly from a real negative verdict in the UI (right now both look identical: a `destructive` badge). None of this was fixed today — Day 14's job was the UI plumbing, and this finding was made via that plumbing, not something to silently patch without the user weighing in on which fix (if any) is worth the added cost/complexity.
 
 **Notes:**
-- Ollama + `llama3.2:3b` still running/pulled from Day 11 — no re-setup needed.
+- Ollama + `llama3.2:3b` still running/pulled from Day 11 — no re-setup needed, but see the reliability finding above before trusting its verdicts for anything real.
 - No mobile navigation yet — sidebar is desktop-only (unchanged since Day 3).
-- Repo is public: `github.com/aks-builds/sentinel-qe`; push again before ending the session if Day 13's commits haven't been pushed yet.
+- Repo is public: `github.com/aks-builds/sentinel-qe`; push again before ending the session if Day 14's commits haven't been pushed yet.
 
 ---
 
-## Next Session — Day 14
+## Next Session — Day 15
 
-**Plan file:** `docs/superpowers/plans/2026-07-10-day14-hallucination-heatmap.md` *(to be written)*
+**Plan file:** `docs/superpowers/plans/2026-07-11-day15-probe-cicd-gate.md` *(to be written)*
 
-**Goal:** Hallucination heatmap overlay on the trace timeline UI, per the design spec's Phase 2 Day 14 deliverable — the day all four detectors (Days 11-13) get tied into the Day 10 `TraceWaterfall` component.
+**Goal:** Probe CI/CD gate — GitHub Action, threshold config, PR comment posting, per the design spec's Phase 2 Day 15 deliverable. **Last day of Phase 2** — Phase 3 (Mirror v1, Days 16-22) begins after this.
 
 **Architecture decisions locked in:**
-- **None of the four detectors read real trace data automatically today** — deciding how/where that association happens is Day 14's first real design question, not a given. Options to weigh: a new engine endpoint that takes a `traceId` and orchestrates the relevant detector(s) itself vs. a web-side integration that fetches per-span critiques and calls the engine per span. Whichever is chosen, it needs to bridge Postgres/ClickHouse (web side, Next.js) and the Python engine (`apps/engine`) — check whether `ENGINE_URL`/the existing web↔engine HTTP client (Day 4) is still wired and usable before assuming it needs rebuilding.
-- All four detector endpoints are stable and tested (37/37) — treat them as a fixed contract for Day 14 to consume, not something to redesign.
-- This is still Phase 2 (Probe v1, Days 6-15) — Day 15 (Probe CI/CD gate) comes after Day 14, not before, and is the last day of Phase 2 before Phase 3 (Mirror v1, Days 16-22) begins.
+- **The judge reliability finding above is directly relevant to Day 15's threshold-gate design.** A CI gate that blocks merges on "hallucination rate > X%" needs to account for a judge that's wrong or unparseable a meaningful fraction of the time on its own — consider whether Day 15 needs a way to distinguish a genuine detected hallucination from a parse-failure/judge-uncertainty case (right now they're indistinguishable in the API response), or whether that's explicitly deferred with the gate treating both the same for now (a defensible MVP choice, but should be a stated decision, not an oversight).
+- Mirror's live-site-automation scope constraint (design spec §13, fixtures not live sites for Days 20-21) becomes relevant starting Day 16, not this day.
+- This is the last day before Phase 3; there's no Day 16 architecture note carried over yet since Mirror v1 hasn't been scoped in detail beyond the spec's own day-by-day table.
