@@ -10,6 +10,11 @@ Full spec: `docs/superpowers/specs/2026-06-26-sentinel-design.md`
 ## Session Protocol
 - **Start every session:** Read this file. Read the plan for the current day.
 - **End every session:** Update the "Current Status" and "Next Session" sections below.
+- **HARD RULE — end every session:** Also check `README.md` for staleness before ending the session:
+  - The status callout's day count and per-module "what's built" summary must match today's actual completed day.
+  - The architecture diagram (Mermaid) must reflect what's genuinely built vs. still planned — update the `BUILT`/`PLANNED` split in the Engine subgraph whenever a module crosses from planned to built.
+  - Any tech-stack/quick-start claim that's become false (e.g. a dependency that was never actually added, a service that's now required for setup) must be fixed, not left stale.
+  - If nothing changed this session, note that explicitly rather than skipping the check silently.
 
 ---
 
