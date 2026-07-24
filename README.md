@@ -10,6 +10,8 @@
 > [design spec](docs/superpowers/specs/2026-06-26-sentinel-design.md) for the
 > full plan. Expect breaking changes before v1.
 
+<img src=".github/media/how-it-works.png" width="900" alt="How sentinel-qe works: agent SDKs and external AI targets feed the Next.js web shell into a Python FastAPI engine's five QE modules (Probe, Mirror, Guard, Cognify, Reach), which persist to Postgres/ClickHouse/Redis/MinIO and surface results back in the dashboard" />
+
 ## The five modules
 
 | Module | What it tests | Covers |
