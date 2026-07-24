@@ -36,7 +36,7 @@ export default async function MirrorSuitePage({
         <h1 className="text-2xl font-bold">{suite.name}</h1>
         <p className="text-sm text-muted-foreground">{prompts.length} prompt(s) in this suite.</p>
       </div>
-      <RecordRunForm suiteId={suite.id} />
+      <RecordRunForm suiteId={suite.id} prompts={prompts} />
       <div className="space-y-2">
         <h2 className="text-sm font-semibold">Comparison</h2>
         <ComparisonTable
