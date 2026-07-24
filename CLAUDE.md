@@ -16,30 +16,32 @@ Full spec: `docs/superpowers/specs/2026-06-26-sentinel-design.md`
 ## Current Status
 
 **Phase:** Probe v1 (Days 6–15)
-**Day completed:** Day 7
+**Day completed:** Day 8
 **What was built:**
-- `packages/sentinel-js/` — pnpm workspace package (`@sentinel-ai/sdk`), zero runtime dependencies (Node global `fetch`/`crypto.randomUUID` only)
-- `new Sentinel({ endpoint, apiKey, project })` — client class construction
-- `sentinel.trace(name)` — returns a `Trace` with a `traceId`/`spanId` (uuid-derived hex) and a captured start time
-- `await trace.end(attributes?)` — records the end time and POSTs the span to `{endpoint}/api/traces` (the Day 5 endpoint), matching `sentinel-py`'s exact JSON payload shape (`traceId`, `spanId`, `name`, `startTime`, `endTime`, `attributes`)
-- Emit failures (network errors, malformed endpoint URLs) are swallowed — `end()` never rejects. This was proactively tested from the start (not discovered after the fact) based on the exact failure class Day 6's whole-branch review found in `sentinel-py`
-- Vitest tests: 6 passing
-- Manually verified end-to-end: a real trace sent via the SDK against a live `pnpm dev` + Docker Compose stack lands a row in ClickHouse's `traces` table
+- Both SDKs (`sentinel-py`, `sentinel-js`) gained tool-call schema validation, executed as two independent tracks (disjoint files, isolated git worktrees, merged separately — no conflicts):
+  - `sentinel-py/sentinel/_schema.py` / `sentinel-js/src/schema.ts` — a hand-rolled JSON Schema subset validator (`type`, `required`, `properties`, `items`, `enum`), zero runtime deps in both, mirrored feature-for-feature
+  - `Trace.tool_call(name, declared_schema, actual_parameters)` (Python) / `Trace.toolCall(name, declaredSchema, actualParameters)` (JS) — validates actual params against the declared schema and returns a `ToolCallResult { valid, errors }`
+  - Each call emits a **child span** on the existing `/api/traces` wire format: `parentSpanId` set to the enclosing trace's `spanId`, `name` = `tool_call:<toolName>`, `attributes` carrying `toolName`/`declaredSchema`/`actualParameters`/`valid`/`errors`. No backend changes were needed — confirms the Day 7 architecture decision that this would extend the existing payload shape, not add a parallel ingestion path.
+- Tests: `sentinel-py` 17/17 pytest passing (7 pre-existing + 7 new schema tests + 3 new tool_call tests), `sentinel-js` 16/16 vitest passing (6 pre-existing + 7 new schema tests + 3 new toolCall tests).
+- Manually verified end-to-end: both SDKs' `tool_call`/`toolCall`, one valid and one invalid call each, sent against a live `pnpm dev` + Docker Compose stack. All 4 spans landed in ClickHouse with `parent_span_id` correctly linking to the enclosing trace's span, and `attributes` correctly carrying the validation result. **Zero bugs found** — first Day-N smoke test on either SDK to come back clean on the first pass (Day 6 found 2 bugs, Day 7 found 0 in the SDK but this was the first time both SDKs were exercised together against the parent/child span relationship).
 
 **Notes:**
-- No auto-instrumentation yet (LangChainJS/Vercel AI SDK/OpenAI Node SDK/etc. wrapping) — later Probe day, not Day 7's scope.
-- `apiKey` is sent as a `Bearer` header but `/api/traces` doesn't validate it yet — same forward-compatible gap noted for `sentinel-py` on Day 6.
+- JSON Schema subset is intentionally narrow: no `$ref`, no `oneOf`/`anyOf`/`allOf`, no `additionalProperties` enforcement, no `pattern`/`format`. Sufficient for Day 8's scope (declared-vs-actual parameter shape checking); revisit only if a later Probe day needs more.
+- `tool_call()`/`toolCall()` emit is fire-and-forget just like the trace's own span — same "never raise/reject on emit failure" guarantee, verified by test for both SDKs.
+- Executed via two parallel subagents in isolated git worktrees (Python track: Tasks 1-2; JS track: Tasks 3-4) since the two SDKs touch entirely disjoint files — merged independently into master with zero conflicts. Faster than the sequential implementer+reviewer-per-task pattern used on Days 6-7; worth repeating whenever a plan has two file-disjoint tracks.
+- No auto-instrumentation yet (LangChain/LangChainJS/AutoGen/CrewAI/Vercel AI SDK/etc. wrapping) — later Probe day, not Day 8's scope.
 - Host port 5432 conflict (native Windows Postgres vs. Docker's forward) is still unresolved — `prisma migrate dev` still can't run from the host.
 - No mobile navigation yet — sidebar is desktop-only for now (unchanged since Day 3).
+- Repo is now public: `github.com/aks-builds/sentinel-qe`.
 
 ---
 
-## Next Session — Day 8
+## Next Session — Day 9
 
-**Plan file:** `docs/superpowers/plans/2026-07-04-day8-tool-call-capture.md` *(to be written)*
+**Plan file:** `docs/superpowers/plans/2026-07-05-day9-probe-ui.md` *(to be written)*
 
-**Goal:** Tool-call capture — record declared vs. actual tool-call parameters during an agent run and validate them against a schema contract, per the design spec's Phase 2 Day 8 deliverable.
+**Goal:** Probe UI — test suite builder, run trigger, live status, per the design spec's Phase 2 Day 9 deliverable.
 
 **Architecture decisions locked in:**
-- Both SDKs (`sentinel-py`, `sentinel-js`) now exist and share an identical `/api/traces` wire format — Day 8's tool-call capture should extend that same payload shape (e.g. an additional span type or `attributes` fields), not invent a parallel ingestion path
-- This is still Phase 2 (Probe v1, Days 6-15) — hallucination-engine work (Days 11-14) comes after tool-call capture, not before
+- Both SDKs now emit two span shapes on the same `/api/traces` payload: a trace's own span (Day 6/7) and a tool-call child span (Day 8, linked via `parentSpanId`). Day 9's UI should read from this existing `traces` ClickHouse table — no new ingestion path needed yet.
+- This is still Phase 2 (Probe v1, Days 6-15) — hallucination-engine work (Days 11-14) comes after the Probe UI (Day 9) and trace timeline viewer (Day 10), not before.
