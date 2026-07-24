@@ -16,32 +16,34 @@ Full spec: `docs/superpowers/specs/2026-06-26-sentinel-design.md`
 ## Current Status
 
 **Phase:** Probe v1 (Days 6–15)
-**Day completed:** Day 8
+**Day completed:** Day 9
 **What was built:**
-- Both SDKs (`sentinel-py`, `sentinel-js`) gained tool-call schema validation, executed as two independent tracks (disjoint files, isolated git worktrees, merged separately — no conflicts):
-  - `sentinel-py/sentinel/_schema.py` / `sentinel-js/src/schema.ts` — a hand-rolled JSON Schema subset validator (`type`, `required`, `properties`, `items`, `enum`), zero runtime deps in both, mirrored feature-for-feature
-  - `Trace.tool_call(name, declared_schema, actual_parameters)` (Python) / `Trace.toolCall(name, declaredSchema, actualParameters)` (JS) — validates actual params against the declared schema and returns a `ToolCallResult { valid, errors }`
-  - Each call emits a **child span** on the existing `/api/traces` wire format: `parentSpanId` set to the enclosing trace's `spanId`, `name` = `tool_call:<toolName>`, `attributes` carrying `toolName`/`declaredSchema`/`actualParameters`/`valid`/`errors`. No backend changes were needed — confirms the Day 7 architecture decision that this would extend the existing payload shape, not add a parallel ingestion path.
-- Tests: `sentinel-py` 17/17 pytest passing (7 pre-existing + 7 new schema tests + 3 new tool_call tests), `sentinel-js` 16/16 vitest passing (6 pre-existing + 7 new schema tests + 3 new toolCall tests).
-- Manually verified end-to-end: both SDKs' `tool_call`/`toolCall`, one valid and one invalid call each, sent against a live `pnpm dev` + Docker Compose stack. All 4 spans landed in ClickHouse with `parent_span_id` correctly linking to the enclosing trace's span, and `attributes` correctly carrying the validation result. **Zero bugs found** — first Day-N smoke test on either SDK to come back clean on the first pass (Day 6 found 2 bugs, Day 7 found 0 in the SDK but this was the first time both SDKs were exercised together against the parent/child span relationship).
+- **Pre-requisite fix (blocking since Day 2, finally resolved):** Docker's Postgres host port was remapped `5432`→`5433` (a native Windows Postgres service was squatting on 5432, so `prisma migrate dev` had silently never worked — zero Postgres tables existed until today). `DATABASE_URL` now uses `localhost:5433`.
+- **`TestSuite`/`TestRun` Prisma models** (scoped by `organizationId`, no `Project` model yet — deferred to Day 50 per the design spec amendment below), plus lazy org provisioning (`getOrCreateOrgId()`) since no registration flow exists yet.
+- **Probe UI**: `/dashboard/probe` (suite list + create form) and `/dashboard/probe/[suiteId]` (run panel: start/complete a run, live-polls trace status every 3s). Because Probe's SDKs don't invoke the customer's agent themselves, "triggering a run" means creating a `TestRun` row and telling the user which SDK `project` string to point at (the suite's name) — traces are then correlated via `getTracesForProject()`, a new ClickHouse query (`JSONExtractString(attributes, 'project') = ... AND start_time >= run.startedAt`), reusing the exact Day 6-8 wire format with zero backend/SDK changes.
+- **Built via 2 rounds of parallel worktree-isolated subagents** (8 implementation tasks total: 4 independent tracks in Round 1 — auth plumbing, Prisma schema, ClickHouse helper, UI components — then 4 more in Round 2 — the 3 API routes + the 2 pages, unblocked once Round 1 merged). All 8 came back DONE on the first pass with zero implementer-reported concerns.
+- Tests: 57/57 vitest passing (43 pre-existing + 14 new). Type-check clean.
+- **Manually verified end-to-end** (via direct HTTP requests with a session cookie — no browser-automation tool was available this session): login → create suite → suite detail page renders the exact SDK `project` string → start run → send a real trace via `sentinel-py` tagged with that project → poll shows the trace live → complete run → suite page's "Past runs" shows it COMPLETED. Full loop worked.
+
+**Two real bugs found only once this smoke test actually ran (both invisible to unit tests, which mock the Prisma/ClickHouse clients):**
+1. **`PrismaClient` had never actually been instantiated against a live request before today** (the Day 2 port blocker prevented every DB-touching request since it was written). Prisma 7 removed the plain `datasourceUrl` client-constructor option entirely — a `PrismaClient` now *requires* either a driver adapter or an Accelerate URL. Fixed by adding `@prisma/adapter-pg` and constructing `db` with `new PrismaClient({ adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }) })` in `apps/web/lib/db.ts`. **This affects every future day that touches Postgres** — the fix is already in place, nothing further needed, but don't be surprised this wasn't caught by Days 2-8's test suites.
+2. Post-merge (not the live smoke test, but caught before it): `@prisma/client`'s generated types didn't include `TestSuite`/`TestRun` in a couple of worktrees because `prisma generate` was never run automatically — fixed by adding `"postinstall": "prisma generate"` to `apps/web/package.json`. Also a `typedRoutes` issue on the one hand-written dynamic `href` (`suite-list.tsx`), fixed with the same `as Route` cast pattern `module-card.tsx` already used.
 
 **Notes:**
-- JSON Schema subset is intentionally narrow: no `$ref`, no `oneOf`/`anyOf`/`allOf`, no `additionalProperties` enforcement, no `pattern`/`format`. Sufficient for Day 8's scope (declared-vs-actual parameter shape checking); revisit only if a later Probe day needs more.
-- `tool_call()`/`toolCall()` emit is fire-and-forget just like the trace's own span — same "never raise/reject on emit failure" guarantee, verified by test for both SDKs.
-- Executed via two parallel subagents in isolated git worktrees (Python track: Tasks 1-2; JS track: Tasks 3-4) since the two SDKs touch entirely disjoint files — merged independently into master with zero conflicts. Faster than the sequential implementer+reviewer-per-task pattern used on Days 6-7; worth repeating whenever a plan has two file-disjoint tracks.
-- No auto-instrumentation yet (LangChain/LangChainJS/AutoGen/CrewAI/Vercel AI SDK/etc. wrapping) — later Probe day, not Day 8's scope.
-- Host port 5432 conflict (native Windows Postgres vs. Docker's forward) is still unresolved — `prisma migrate dev` still can't run from the host.
 - No mobile navigation yet — sidebar is desktop-only for now (unchanged since Day 3).
-- Repo is now public: `github.com/aks-builds/sentinel-qe`.
+- No auto-instrumentation yet for either SDK — later Probe day.
+- Repo is public: `github.com/aks-builds/sentinel-qe`. Local work is several commits ahead of `origin/master` as of this session's end — push before starting Day 10 if you want GitHub in sync (not done automatically every commit, only when explicitly confirmed).
 
 ---
 
-## Next Session — Day 9
+## Next Session — Day 10
 
-**Plan file:** `docs/superpowers/plans/2026-07-05-day9-probe-ui.md` *(to be written)*
+**Plan file:** `docs/superpowers/plans/2026-07-06-day10-trace-timeline.md` *(to be written)*
 
-**Goal:** Probe UI — test suite builder, run trigger, live status, per the design spec's Phase 2 Day 9 deliverable.
+**Goal:** Trace timeline viewer — step-by-step waterfall with latency per hop, per the design spec's Phase 2 Day 10 deliverable.
 
 **Architecture decisions locked in:**
-- Both SDKs now emit two span shapes on the same `/api/traces` payload: a trace's own span (Day 6/7) and a tool-call child span (Day 8, linked via `parentSpanId`). Day 9's UI should read from this existing `traces` ClickHouse table — no new ingestion path needed yet.
-- This is still Phase 2 (Probe v1, Days 6-15) — hallucination-engine work (Days 11-14) comes after the Probe UI (Day 9) and trace timeline viewer (Day 10), not before.
+- Read from the existing `traces` ClickHouse table — same `parent_span_id` relationship (Day 8) and the same `getTracesForProject`-style query pattern (Day 9) apply; no new ingestion path.
+- Postgres is now genuinely usable end-to-end (migrations, live queries) for the first time — any day needing new Postgres models can just add them; the adapter fix in `lib/db.ts` and the port-5433 remap are permanent, not per-session workarounds.
+- **Judge backend and Mirror live-site automation scope were resolved before Day 9** (design spec §12-13, added 2026-07-24): judge = self-hosted Ollama (added when first needed, Day 11+), never a paid cloud API; Mirror's Days 20-21 build against local test fixtures, not live ChatGPT.com/Claude.ai, until real test accounts exist.
+- This is still Phase 2 (Probe v1, Days 6-15) — hallucination-engine work (Days 11-14) comes after Day 10, not before.
