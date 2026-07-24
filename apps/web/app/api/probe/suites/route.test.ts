@@ -1,17 +1,17 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-const mockAuth = vi.fn()
+const mockGetAuthenticatedUserId = vi.fn()
 const mockFindMany = vi.fn()
 const mockCreate = vi.fn()
 const mockGetOrCreateOrgId = vi.fn()
 
-vi.mock('@/auth', () => ({ auth: mockAuth }))
+vi.mock('@/lib/auth-request', () => ({ getAuthenticatedUserId: mockGetAuthenticatedUserId }))
 vi.mock('@/lib/db', () => ({ db: { testSuite: { findMany: mockFindMany, create: mockCreate } } }))
 vi.mock('@/lib/org', () => ({ getOrCreateOrgId: mockGetOrCreateOrgId }))
 
 describe('/api/probe/suites', () => {
   beforeEach(() => {
-    mockAuth.mockReset()
+    mockGetAuthenticatedUserId.mockReset()
     mockFindMany.mockReset()
     mockCreate.mockReset()
     mockGetOrCreateOrgId.mockReset()
@@ -19,21 +19,21 @@ describe('/api/probe/suites', () => {
 
   describe('GET', () => {
     it('returns 401 when unauthenticated', async () => {
-      mockAuth.mockResolvedValue(null)
+      mockGetAuthenticatedUserId.mockResolvedValue(null)
       const { GET } = await import('./route')
 
-      const response = await GET()
+      const response = await GET(new Request('http://localhost'))
 
       expect(response.status).toBe(401)
     })
 
     it("lists the org's probe suites", async () => {
-      mockAuth.mockResolvedValue({ user: { id: 'user-1' } })
+      mockGetAuthenticatedUserId.mockResolvedValue('user-1')
       mockGetOrCreateOrgId.mockResolvedValue('org-1')
       mockFindMany.mockResolvedValue([{ id: 'suite-1', name: 'Regression', module: 'probe' }])
       const { GET } = await import('./route')
 
-      const response = await GET()
+      const response = await GET(new Request('http://localhost'))
       const body = await response.json()
 
       expect(response.status).toBe(200)
@@ -42,11 +42,22 @@ describe('/api/probe/suites', () => {
       )
       expect(body.suites).toEqual([{ id: 'suite-1', name: 'Regression', module: 'probe' }])
     })
+
+    it('authenticates via the Bearer/session-agnostic helper (works for both a session and an API key)', async () => {
+      mockGetAuthenticatedUserId.mockResolvedValue('user-1')
+      mockGetOrCreateOrgId.mockResolvedValue('org-1')
+      mockFindMany.mockResolvedValue([])
+      const { GET } = await import('./route')
+
+      await GET(new Request('http://localhost', { headers: { Authorization: 'Bearer sk_test123' } }))
+
+      expect(mockGetAuthenticatedUserId).toHaveBeenCalledOnce()
+    })
   })
 
   describe('POST', () => {
     it('returns 401 when unauthenticated', async () => {
-      mockAuth.mockResolvedValue(null)
+      mockGetAuthenticatedUserId.mockResolvedValue(null)
       const { POST } = await import('./route')
 
       const response = await POST(new Request('http://localhost/api/probe/suites', { method: 'POST', body: '{}' }))
@@ -55,7 +66,7 @@ describe('/api/probe/suites', () => {
     })
 
     it('creates a suite and returns 201', async () => {
-      mockAuth.mockResolvedValue({ user: { id: 'user-1' } })
+      mockGetAuthenticatedUserId.mockResolvedValue('user-1')
       mockGetOrCreateOrgId.mockResolvedValue('org-1')
       mockCreate.mockResolvedValue({ id: 'suite-1', name: 'Regression', module: 'probe' })
       const { POST } = await import('./route')
@@ -76,7 +87,7 @@ describe('/api/probe/suites', () => {
     })
 
     it('returns 400 for an empty name', async () => {
-      mockAuth.mockResolvedValue({ user: { id: 'user-1' } })
+      mockGetAuthenticatedUserId.mockResolvedValue('user-1')
       const { POST } = await import('./route')
 
       const response = await POST(
@@ -88,7 +99,7 @@ describe('/api/probe/suites', () => {
     })
 
     it('returns 400 for a body that is not valid JSON', async () => {
-      mockAuth.mockResolvedValue({ user: { id: 'user-1' } })
+      mockGetAuthenticatedUserId.mockResolvedValue('user-1')
       const { POST } = await import('./route')
 
       const response = await POST(new Request('http://localhost/api/probe/suites', { method: 'POST', body: 'not json' }))

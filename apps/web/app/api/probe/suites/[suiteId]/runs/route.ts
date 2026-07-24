@@ -1,17 +1,17 @@
 import { NextResponse } from 'next/server'
-import { auth } from '@/auth'
 import { db } from '@/lib/db'
 import { getOrCreateOrgId } from '@/lib/org'
+import { getAuthenticatedUserId } from '@/lib/auth-request'
 
 export async function POST(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ suiteId: string }> }
 ) {
-  const session = await auth()
-  if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const userId = await getAuthenticatedUserId(request)
+  if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { suiteId } = await params
-  const organizationId = await getOrCreateOrgId(session.user.id)
+  const organizationId = await getOrCreateOrgId(userId)
 
   const suite = await db.testSuite.findFirst({ where: { id: suiteId, organizationId } })
   if (!suite) return NextResponse.json({ error: 'Suite not found' }, { status: 404 })

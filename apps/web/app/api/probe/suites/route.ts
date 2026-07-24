@@ -1,16 +1,16 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
-import { auth } from '@/auth'
 import { db } from '@/lib/db'
 import { getOrCreateOrgId } from '@/lib/org'
+import { getAuthenticatedUserId } from '@/lib/auth-request'
 
 const createSuiteSchema = z.object({ name: z.string().min(1).max(200) })
 
-export async function GET() {
-  const session = await auth()
-  if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+export async function GET(request: Request) {
+  const userId = await getAuthenticatedUserId(request)
+  if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const organizationId = await getOrCreateOrgId(session.user.id)
+  const organizationId = await getOrCreateOrgId(userId)
   const suites = await db.testSuite.findMany({
     where: { organizationId, module: 'probe' },
     orderBy: { createdAt: 'desc' },
@@ -19,8 +19,8 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const session = await auth()
-  if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const userId = await getAuthenticatedUserId(request)
+  if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   let body: unknown
   try {
@@ -34,7 +34,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 })
   }
 
-  const organizationId = await getOrCreateOrgId(session.user.id)
+  const organizationId = await getOrCreateOrgId(userId)
   const suite = await db.testSuite.create({
     data: { name: parsed.data.name, module: 'probe', organizationId },
   })

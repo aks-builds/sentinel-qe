@@ -1,18 +1,18 @@
 import { NextResponse } from 'next/server'
-import { auth } from '@/auth'
 import { db } from '@/lib/db'
 import { getOrCreateOrgId } from '@/lib/org'
 import { getTracesForProject } from '@/lib/clickhouse'
+import { getAuthenticatedUserId } from '@/lib/auth-request'
 
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ runId: string }> }
 ) {
-  const session = await auth()
-  if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const userId = await getAuthenticatedUserId(request)
+  if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { runId } = await params
-  const organizationId = await getOrCreateOrgId(session.user.id)
+  const organizationId = await getOrCreateOrgId(userId)
 
   const run = await db.testRun.findFirst({
     where: { id: runId, suite: { organizationId } },
@@ -25,14 +25,14 @@ export async function GET(
 }
 
 export async function PATCH(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ runId: string }> }
 ) {
-  const session = await auth()
-  if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const userId = await getAuthenticatedUserId(request)
+  if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { runId } = await params
-  const organizationId = await getOrCreateOrgId(session.user.id)
+  const organizationId = await getOrCreateOrgId(userId)
 
   const run = await db.testRun.findFirst({ where: { id: runId, suite: { organizationId } } })
   if (!run) return NextResponse.json({ error: 'Run not found' }, { status: 404 })
