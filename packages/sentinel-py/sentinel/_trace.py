@@ -1,11 +1,13 @@
 import json
 import uuid
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Optional
+from typing import List, Optional
 from urllib.error import URLError
 from urllib.request import Request, urlopen
 
 from ._client import SentinelConfig, get_config
+from ._schema import validate_schema
 
 
 def _now_iso() -> str:
@@ -29,6 +31,12 @@ def _emit_span(payload: dict, config: SentinelConfig) -> None:
         pass
 
 
+@dataclass
+class ToolCallResult:
+    valid: bool
+    errors: List[str] = field(default_factory=list)
+
+
 class Trace:
     def __init__(self, name: str):
         self._config = get_config()
@@ -40,6 +48,33 @@ class Trace:
     def __enter__(self) -> "Trace":
         self._start_time = _now_iso()
         return self
+
+    def tool_call(
+        self, name: str, declared_schema: dict, actual_parameters: dict
+    ) -> ToolCallResult:
+        errors = validate_schema(declared_schema, actual_parameters)
+        result = ToolCallResult(valid=len(errors) == 0, errors=errors)
+        now = _now_iso()
+        _emit_span(
+            {
+                "traceId": self.trace_id,
+                "spanId": uuid.uuid4().hex,
+                "parentSpanId": self.span_id,
+                "name": f"tool_call:{name}",
+                "startTime": now,
+                "endTime": now,
+                "attributes": {
+                    "project": self._config.project,
+                    "toolName": name,
+                    "declaredSchema": declared_schema,
+                    "actualParameters": actual_parameters,
+                    "valid": result.valid,
+                    "errors": result.errors,
+                },
+            },
+            self._config,
+        )
+        return result
 
     def __exit__(self, exc_type, exc_value, traceback) -> bool:
         end_time = _now_iso()
