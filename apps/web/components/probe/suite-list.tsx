@@ -1,3 +1,4 @@
+import type { Route } from 'next'
 import Link from 'next/link'
 import type { TestSuite } from '@prisma/client'
 
@@ -11,7 +12,7 @@ export function SuiteList({ suites }: { suites: TestSuite[] }) {
       {suites.map((suite) => (
         <li key={suite.id}>
           <Link
-            href={`/dashboard/probe/${suite.id}`}
+            href={`/dashboard/probe/${suite.id}` as Route}
             className="flex items-center justify-between px-4 py-3 transition-colors hover:bg-accent"
           >
             <span className="font-medium">{suite.name}</span>
