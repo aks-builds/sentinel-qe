@@ -32,6 +32,10 @@ describe('RunPanel', () => {
 
     await waitFor(() => expect(screen.getByText(/1 trace received/i)).toBeInTheDocument())
     expect(screen.getByText('run-001')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /run-001/i })).toHaveAttribute(
+      'href',
+      '/dashboard/probe/suite-1/traces/t1'
+    )
   })
 
   it('completing a run stops polling and shows the completed badge in past runs', async () => {

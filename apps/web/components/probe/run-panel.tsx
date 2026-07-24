@@ -1,5 +1,7 @@
 'use client'
 
+import type { Route } from 'next'
+import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -88,7 +90,12 @@ export function RunPanel({
             {traces.map((trace) => (
               <li key={trace.spanId} className="text-sm">
                 <span className="font-mono text-xs text-muted-foreground">{trace.startTime}</span>{' '}
-                {trace.name}
+                <Link
+                  href={`/dashboard/probe/${suiteId}/traces/${trace.traceId}` as Route}
+                  className="underline-offset-2 hover:underline"
+                >
+                  {trace.name}
+                </Link>
               </li>
             ))}
           </ul>
