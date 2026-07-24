@@ -69,6 +69,7 @@ model TestSuite {
   id             String       @id @default(cuid())
   name           String
   module         String
+  prompts        Json?
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id])
   createdAt      DateTime     @default(now())
@@ -83,10 +84,28 @@ model TestRun {
   suiteId     String
   suite       TestSuite     @relation(fields: [suiteId], references: [id], onDelete: Cascade)
   status      TestRunStatus @default(RUNNING)
+  provider    String?
+  isBaseline  Boolean       @default(false)
   startedAt   DateTime      @default(now())
   completedAt DateTime?
 
+  results MirrorResult[]
+
   @@index([suiteId])
+}
+
+model MirrorResult {
+  id          String   @id @default(cuid())
+  runId       String
+  run         TestRun  @relation(fields: [runId], references: [id], onDelete: Cascade)
+  prompt      String
+  response    String
+  correctness Int?
+  relevance   Int?
+  tone        Int?
+  createdAt   DateTime @default(now())
+
+  @@index([runId])
 }
 
 // ─── NextAuth adapter models (required for future OIDC/SAML support) ─────────
