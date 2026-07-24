@@ -16,34 +16,29 @@ Full spec: `docs/superpowers/specs/2026-06-26-sentinel-design.md`
 ## Current Status
 
 **Phase:** Probe v1 (Days 6–15)
-**Day completed:** Day 9
+**Day completed:** Day 10
 **What was built:**
-- **Pre-requisite fix (blocking since Day 2, finally resolved):** Docker's Postgres host port was remapped `5432`→`5433` (a native Windows Postgres service was squatting on 5432, so `prisma migrate dev` had silently never worked — zero Postgres tables existed until today). `DATABASE_URL` now uses `localhost:5433`.
-- **`TestSuite`/`TestRun` Prisma models** (scoped by `organizationId`, no `Project` model yet — deferred to Day 50 per the design spec amendment below), plus lazy org provisioning (`getOrCreateOrgId()`) since no registration flow exists yet.
-- **Probe UI**: `/dashboard/probe` (suite list + create form) and `/dashboard/probe/[suiteId]` (run panel: start/complete a run, live-polls trace status every 3s). Because Probe's SDKs don't invoke the customer's agent themselves, "triggering a run" means creating a `TestRun` row and telling the user which SDK `project` string to point at (the suite's name) — traces are then correlated via `getTracesForProject()`, a new ClickHouse query (`JSONExtractString(attributes, 'project') = ... AND start_time >= run.startedAt`), reusing the exact Day 6-8 wire format with zero backend/SDK changes.
-- **Built via 2 rounds of parallel worktree-isolated subagents** (8 implementation tasks total: 4 independent tracks in Round 1 — auth plumbing, Prisma schema, ClickHouse helper, UI components — then 4 more in Round 2 — the 3 API routes + the 2 pages, unblocked once Round 1 merged). All 8 came back DONE on the first pass with zero implementer-reported concerns.
-- Tests: 57/57 vitest passing (43 pre-existing + 14 new). Type-check clean.
-- **Manually verified end-to-end** (via direct HTTP requests with a session cookie — no browser-automation tool was available this session): login → create suite → suite detail page renders the exact SDK `project` string → start run → send a real trace via `sentinel-py` tagged with that project → poll shows the trace live → complete run → suite page's "Past runs" shows it COMPLETED. Full loop worked.
-
-**Two real bugs found only once this smoke test actually ran (both invisible to unit tests, which mock the Prisma/ClickHouse clients):**
-1. **`PrismaClient` had never actually been instantiated against a live request before today** (the Day 2 port blocker prevented every DB-touching request since it was written). Prisma 7 removed the plain `datasourceUrl` client-constructor option entirely — a `PrismaClient` now *requires* either a driver adapter or an Accelerate URL. Fixed by adding `@prisma/adapter-pg` and constructing `db` with `new PrismaClient({ adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }) })` in `apps/web/lib/db.ts`. **This affects every future day that touches Postgres** — the fix is already in place, nothing further needed, but don't be surprised this wasn't caught by Days 2-8's test suites.
-2. Post-merge (not the live smoke test, but caught before it): `@prisma/client`'s generated types didn't include `TestSuite`/`TestRun` in a couple of worktrees because `prisma generate` was never run automatically — fixed by adding `"postinstall": "prisma generate"` to `apps/web/package.json`. Also a `typedRoutes` issue on the one hand-written dynamic `href` (`suite-list.tsx`), fixed with the same `as Route` cast pattern `module-card.tsx` already used.
+- **Trace waterfall viewer**: `getSpansForTrace(traceId)` and `getProjectForTrace(traceId)` (new ClickHouse queries in `lib/clickhouse.ts`), a `TraceWaterfall` component (depth-indented rows via the `parent_span_id` chain, proportional-width bars, latency in ms per span), and a new page `/dashboard/probe/[suiteId]/traces/[traceId]`. `RunPanel`'s live trace rows are now links into it.
+- **Real access control, not just "any suite you own":** the trace page fetches the trace's `attributes.project` and 404s unless it exactly matches the requested suite's name — verified live by requesting a trace from a different project under the same suite ID and getting a 404, not someone else's data.
+- Built via 1 round of 2 parallel worktree-isolated tracks (ClickHouse helpers, `TraceWaterfall` component — fully disjoint, no shared dependency), then the small page + `RunPanel`-linking task done directly by the controller (no subagent — same judgment call as Day 9's schema task: small, sequential, not worth worktree overhead).
+- Tests: 64/64 vitest passing (57 pre-existing + 7 new). Type-check clean.
+- **Manually verified end-to-end** against the live stack (HTTP + session cookie, same approach as Day 9 — no browser-automation tool available): started a real run on Day 9's `smoke-test-day9` suite, sent a trace with a `tool_call` child span via `sentinel-py`, confirmed the waterfall page renders both spans with correct depth (root `paddingLeft: 0px`, child `paddingLeft: 16px`) and duration. **Zero bugs found** — first Probe UI day (of two) to come back fully clean.
+- One real MVP gap noticed, not fixed (out of Day 10's scope, worth a future day): Day 9's `RunPanel` only shows a trace list for the *currently active* run — a `COMPLETED` run's history shows just a date + status badge, no way to browse its past traces without knowing a trace ID already. Revisit if a later Probe day needs historical trace browsing.
 
 **Notes:**
-- No mobile navigation yet — sidebar is desktop-only for now (unchanged since Day 3).
+- No mobile navigation yet — sidebar is desktop-only (unchanged since Day 3).
 - No auto-instrumentation yet for either SDK — later Probe day.
-- Repo is public: `github.com/aks-builds/sentinel-qe`. Local work is several commits ahead of `origin/master` as of this session's end — push before starting Day 10 if you want GitHub in sync (not done automatically every commit, only when explicitly confirmed).
+- Repo is public: `github.com/aks-builds/sentinel-qe`, pushed through this session's Day 9 work; push again before ending the session if Day 10's commits haven't been pushed yet.
 
 ---
 
-## Next Session — Day 10
+## Next Session — Day 11
 
-**Plan file:** `docs/superpowers/plans/2026-07-06-day10-trace-timeline.md` *(to be written)*
+**Plan file:** `docs/superpowers/plans/2026-07-07-day11-hallucination-reasoning.md` *(to be written)*
 
-**Goal:** Trace timeline viewer — step-by-step waterfall with latency per hop, per the design spec's Phase 2 Day 10 deliverable.
+**Goal:** Hallucination engine (Python) — Reasoning stage detector (chain-of-thought critic), per the design spec's Phase 2 Day 11 deliverable.
 
 **Architecture decisions locked in:**
-- Read from the existing `traces` ClickHouse table — same `parent_span_id` relationship (Day 8) and the same `getTracesForProject`-style query pattern (Day 9) apply; no new ingestion path.
-- Postgres is now genuinely usable end-to-end (migrations, live queries) for the first time — any day needing new Postgres models can just add them; the adapter fix in `lib/db.ts` and the port-5433 remap are permanent, not per-session workarounds.
-- **Judge backend and Mirror live-site automation scope were resolved before Day 9** (design spec §12-13, added 2026-07-24): judge = self-hosted Ollama (added when first needed, Day 11+), never a paid cloud API; Mirror's Days 20-21 build against local test fixtures, not live ChatGPT.com/Claude.ai, until real test accounts exist.
-- This is still Phase 2 (Probe v1, Days 6-15) — hallucination-engine work (Days 11-14) comes after Day 10, not before.
+- **This is the first day that needs the judge backend** (design spec §12, resolved 2026-07-24): default to a self-hosted, open-weight model via a new Ollama service in `docker/docker-compose.yml` (not yet added — add it this day), behind a pluggable interface in the Python engine, never a paid cloud API by default.
+- Postgres/Prisma and ClickHouse are both fully proven end-to-end now (Days 9-10) — no infra blockers expected for Day 11 unless Ollama itself needs new Docker Compose wiring, which it does.
+- This is still Phase 2 (Probe v1, Days 6-15) — Days 12-13 (Execution/Perception/Communication stage detectors) and Day 14 (heatmap overlay) come after Day 11, not before.
