@@ -25,3 +25,31 @@ export async function ensureTracesTable(): Promise<void> {
     `,
   })
 }
+
+export async function getTracesForProject(
+  projectName: string,
+  since: Date
+): Promise<Array<{ traceId: string; spanId: string; name: string; startTime: string }>> {
+  const result = await clickhouse.query({
+    query: `
+      SELECT trace_id, span_id, name, start_time
+      FROM traces
+      WHERE JSONExtractString(attributes, 'project') = {projectName:String}
+        AND start_time >= {since:DateTime64(3)}
+      ORDER BY start_time DESC
+      LIMIT 50
+    `,
+    query_params: {
+      projectName,
+      since: since.toISOString().replace('T', ' ').replace('Z', ''),
+    },
+    format: 'JSONEachRow',
+  })
+  const rows = await result.json<{ trace_id: string; span_id: string; name: string; start_time: string }>()
+  return rows.map((row) => ({
+    traceId: row.trace_id,
+    spanId: row.span_id,
+    name: row.name,
+    startTime: row.start_time,
+  }))
+}
