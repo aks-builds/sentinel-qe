@@ -94,20 +94,39 @@ services:
       retries: 15
       start_period: 15s
 
+  ollama:
+    image: ollama/ollama:latest
+    container_name: sentinel_ollama
+    restart: unless-stopped
+    ports:
+      - '11434:11434'
+    volumes:
+      - ollama_data:/root/.ollama
+    healthcheck:
+      test: ['CMD', 'ollama', 'list']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
   engine:
     build:
       context: ../apps/engine
       dockerfile: Dockerfile
     container_name: sentinel_engine
     restart: unless-stopped
+    environment:
+      OLLAMA_URL: http://ollama:11434
     expose:
       - '8000'
     depends_on:
       - postgres
       - redis
+      - ollama
 
 volumes:
   postgres_data:
   redis_data:
   minio_data:
   clickhouse_data:
+  ollama_data:
