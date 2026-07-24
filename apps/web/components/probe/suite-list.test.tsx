@@ -20,7 +20,7 @@ describe('SuiteList', () => {
     render(
       <SuiteList
         suites={[
-          { id: 'suite-1', name: 'Regression', module: 'probe', organizationId: 'org-1', createdAt: new Date('2026-07-24') },
+          { id: 'suite-1', name: 'Regression', module: 'probe', prompts: null, organizationId: 'org-1', createdAt: new Date('2026-07-24') },
         ]}
       />
     )
