@@ -16,29 +16,30 @@ Full spec: `docs/superpowers/specs/2026-06-26-sentinel-design.md`
 ## Current Status
 
 **Phase:** Probe v1 (Days 6–15)
-**Day completed:** Day 12
+**Day completed:** Day 13
 **What was built:**
-- **Execution-stage hallucination detector** (`sentinel_engine/hallucination/execution.py`): `detect_execution_hallucination(judge, task, available_tools, selected_tool, parameters_valid, parameter_errors)`. Deliberately does **not** re-implement parameter validation — that already exists correctly in both SDKs (Day 8) — it accepts the caller's already-known `parameters_valid`/`parameter_errors` (pulled from the trace's existing `tool_call` span attributes) and combines them with a **new, judged tool-selection check**: `hallucination_detected` is true if the wrong tool was selected *or* its parameters were invalid.
-- Same line-based-response lesson from Day 11 reused: `CORRECT_TOOL: <name>` / `REASON: <text>`, not JSON, parsed leniently with unparseable-response defaulting to "flag it."
-- **New endpoint**: `POST /probe/hallucination/execution`, same `Depends(get_judge)` pattern.
-- No parallelization this day — single detector feeding a single endpoint, both done directly by the controller, no subagents (a genuinely linear dependency chain, unlike Day 11's 2-track Round 1).
-- Tests: 24/24 pytest passing (16 pre-existing + 5 detector + 3 endpoint).
-- **Manually verified end-to-end against real `llama3.2:3b`**: gave it a lookup task with `issue_refund` deliberately selected instead of the obviously-correct `search_orders`. The model correctly returned `hallucination_detected: true` and `tool_selection_correct: false` — the core mechanism works. **Honest finding, not glossed over:** it named `correct_tool: "NONE"` instead of `search_orders`, even though the prompt explicitly reserves `NONE` for "no tool call was needed" and this task clearly needed one. So this 3B model reliably catches "you picked the wrong tool" but isn't always reliable at naming *which* tool would have been right — a real fidelity gap to keep in mind for any UI or later day that surfaces `correct_tool` to a human, not just the boolean flag.
+- **Perception-stage detector** (`sentinel_engine/hallucination/perception.py`): `detect_perception_hallucination(judge, context, claims)` — per-claim `SUPPORTED`/`UNSUPPORTED` verdicts against *only the given context* (unlike Day 11's reasoning detector, general knowledge does NOT count as support here — perception means correctly reading what was actually given). Structurally mirrors Day 11's reasoning detector almost exactly (same line format, same lenient per-line parsing, same conservative unparseable-defaults-to-flagged behavior).
+- **Communication-stage detector** (`sentinel_engine/hallucination/communication.py`): `detect_communication_hallucination(judge, internal_facts, final_message)` — a single holistic `FAITHFUL`/`UNFAITHFUL` verdict (not per-item, since faithfulness is inherently a whole-message judgment). Deliberately kept to a boolean-ish ask per the Day 11-12 reliability lesson, not "name what the message should have said."
+- Two new endpoints: `POST /probe/hallucination/perception`, `POST /probe/hallucination/communication`.
+- Built via 1 round of 2 parallel worktree-isolated tracks (perception, communication — fully disjoint, no shared code), then the two endpoints done directly and sequentially by the controller (small, both need both detectors merged first).
+- Tests: 37/37 pytest passing (24 pre-existing + 5 perception + 4 communication + 4 endpoint).
+- **Manually verified end-to-end against real `llama3.2:3b`, both came back clean — no fidelity gaps this time, unlike Days 11-12.** Perception: given a context stating an order was "delivered" and a false claim that it was "cancelled and refunded," correctly flagged `hallucination_detected: true` on the false claim (the true claim's *verdict* was also correct, though its explanation text was a bit awkwardly worded — a minor phrasing quirk, not a wrong answer). Communication: given internal facts saying a refund "will take 5-7 business days" and a final message claiming "the money is already in your account," correctly flagged `hallucination_detected: true` with an accurate, precise reason citing the omitted timeframe.
+- **All four of the design spec's Reasoning/Execution/Perception/Communication hallucination stages now exist as standalone, judge-backed (or judge+deterministic-combined) FastAPI endpoints.** None of them read from real trace data automatically yet — each is a standalone endpoint taking an explicit request body. **Observed gap in the original 50-day plan, not fixed unilaterally:** the design spec's module description lists a 5th stage, "Memorization," as part of the hallucination taxonomy, but the Phase 2 day-by-day table (Days 11-15) never allocates it a day — only Reasoning/Execution/Perception/Communication get one. Flagging this for the user's awareness; not adding unplanned scope to fill the gap without being asked.
 
 **Notes:**
-- Ollama + `llama3.2:3b` are already running/pulled from Day 11 — no re-setup needed this session or future ones, the model persists in the `ollama_data` volume.
+- Ollama + `llama3.2:3b` still running/pulled from Day 11 — no re-setup needed.
 - No mobile navigation yet — sidebar is desktop-only (unchanged since Day 3).
-- Repo is public: `github.com/aks-builds/sentinel-qe`; push again before ending the session if Day 12's commits haven't been pushed yet.
+- Repo is public: `github.com/aks-builds/sentinel-qe`; push again before ending the session if Day 13's commits haven't been pushed yet.
 
 ---
 
-## Next Session — Day 13
+## Next Session — Day 14
 
-**Plan file:** `docs/superpowers/plans/2026-07-09-day13-hallucination-perception-communication.md` *(to be written)*
+**Plan file:** `docs/superpowers/plans/2026-07-10-day14-hallucination-heatmap.md` *(to be written)*
 
-**Goal:** Hallucination engine — Perception + Communication stage detectors, per the design spec's Phase 2 Day 13 deliverable (two detectors in one day — Perception: did the agent correctly interpret its input/retrieved context; Communication: does the final answer accurately reflect what was reasoned/retrieved).
+**Goal:** Hallucination heatmap overlay on the trace timeline UI, per the design spec's Phase 2 Day 14 deliverable — the day all four detectors (Days 11-13) get tied into the Day 10 `TraceWaterfall` component.
 
 **Architecture decisions locked in:**
-- The `Judge`/`OllamaJudge` interface, the `llama3.2:3b` model, and the line-based-response-format pattern are all already in place (Days 11-12) — reuse them for both new detectors, don't re-derive.
-- **Known model fidelity gaps to design around, not rediscover:** `llama3.2:3b` is inconsistent crediting general-knowledge support (Day 11) and inconsistent naming a "correct" alternative even when it correctly flags something as wrong (Day 12). Favor prompts/parsers that only need a **boolean-ish verdict per item** (like Days 11-12's `SUPPORTED`/`UNSUPPORTED` and the hallucination-detected flag) over prompts that need the model to *name* the ideal answer — the former has proven far more reliable than the latter across both days so far.
-- This is still Phase 2 (Probe v1, Days 6-15) — Day 14 (hallucination heatmap overlay on the trace timeline UI, tying Days 11-13's detectors into the Day 10 waterfall) comes after Day 13, not before.
+- **None of the four detectors read real trace data automatically today** — deciding how/where that association happens is Day 14's first real design question, not a given. Options to weigh: a new engine endpoint that takes a `traceId` and orchestrates the relevant detector(s) itself vs. a web-side integration that fetches per-span critiques and calls the engine per span. Whichever is chosen, it needs to bridge Postgres/ClickHouse (web side, Next.js) and the Python engine (`apps/engine`) — check whether `ENGINE_URL`/the existing web↔engine HTTP client (Day 4) is still wired and usable before assuming it needs rebuilding.
+- All four detector endpoints are stable and tested (37/37) — treat them as a fixed contract for Day 14 to consume, not something to redesign.
+- This is still Phase 2 (Probe v1, Days 6-15) — Day 15 (Probe CI/CD gate) comes after Day 14, not before, and is the last day of Phase 2 before Phase 3 (Mirror v1, Days 16-22) begins.
