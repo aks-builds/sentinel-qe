@@ -28,10 +28,24 @@ describe('getTracesForProject', () => {
 })
 
 describe('getSpansForTrace', () => {
-  it('queries all spans for a trace_id, ordered by start_time', async () => {
+  it('queries all spans for a trace_id, ordered by start_time, including parsed attributes', async () => {
     mockJson.mockResolvedValueOnce([
-      { span_id: 's1', parent_span_id: '', name: 'root-run', start_time: '2026-07-24 05:00:00.000', end_time: '2026-07-24 05:00:01.000' },
-      { span_id: 's2', parent_span_id: 's1', name: 'tool_call:search', start_time: '2026-07-24 05:00:00.200', end_time: '2026-07-24 05:00:00.400' },
+      {
+        span_id: 's1',
+        parent_span_id: '',
+        name: 'root-run',
+        start_time: '2026-07-24 05:00:00.000',
+        end_time: '2026-07-24 05:00:01.000',
+        attributes: '{"project":"demo"}',
+      },
+      {
+        span_id: 's2',
+        parent_span_id: 's1',
+        name: 'tool_call:search',
+        start_time: '2026-07-24 05:00:00.200',
+        end_time: '2026-07-24 05:00:00.400',
+        attributes: '{"toolName":"search","valid":false,"errors":["root.q: required property missing"]}',
+      },
     ])
     const { getSpansForTrace } = await import('./clickhouse')
 
@@ -45,8 +59,22 @@ describe('getSpansForTrace', () => {
       })
     )
     expect(spans).toEqual([
-      { spanId: 's1', parentSpanId: '', name: 'root-run', startTime: '2026-07-24 05:00:00.000', endTime: '2026-07-24 05:00:01.000' },
-      { spanId: 's2', parentSpanId: 's1', name: 'tool_call:search', startTime: '2026-07-24 05:00:00.200', endTime: '2026-07-24 05:00:00.400' },
+      {
+        spanId: 's1',
+        parentSpanId: '',
+        name: 'root-run',
+        startTime: '2026-07-24 05:00:00.000',
+        endTime: '2026-07-24 05:00:01.000',
+        attributes: { project: 'demo' },
+      },
+      {
+        spanId: 's2',
+        parentSpanId: 's1',
+        name: 'tool_call:search',
+        startTime: '2026-07-24 05:00:00.200',
+        endTime: '2026-07-24 05:00:00.400',
+        attributes: { toolName: 'search', valid: false, errors: ['root.q: required property missing'] },
+      },
     ])
   })
 })
