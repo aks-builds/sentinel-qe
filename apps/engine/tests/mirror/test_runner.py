@@ -1,4 +1,4 @@
-from sentinel_engine.mirror.providers.base import Provider, ProviderResponse
+from sentinel_engine.mirror.providers.base import Message, Provider, ProviderResponse
 from sentinel_engine.mirror.runner import run_prompt_suite
 
 
@@ -7,8 +7,12 @@ class FakeProvider(Provider):
         self.responses = responses
         self.calls: list[str] = []
 
-    def complete(self, prompt: str) -> ProviderResponse:
-        self.calls.append(prompt)
+    def complete_conversation(self, messages: list[Message]) -> ProviderResponse:
+        # Extract the prompt from the last user message
+        for message in reversed(messages):
+            if message.role == "user":
+                self.calls.append(message.content)
+                break
         return self.responses[len(self.calls) - 1]
 
 
