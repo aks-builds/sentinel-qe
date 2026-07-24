@@ -1,5 +1,3 @@
-import os
-
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 
@@ -7,8 +5,7 @@ from sentinel_engine.hallucination.communication import detect_communication_hal
 from sentinel_engine.hallucination.execution import ToolDefinition, detect_execution_hallucination
 from sentinel_engine.hallucination.perception import detect_perception_hallucination
 from sentinel_engine.hallucination.reasoning import detect_reasoning_hallucination
-from sentinel_engine.judge.base import Judge
-from sentinel_engine.judge.ollama_judge import OllamaJudge
+from sentinel_engine.judge import Judge, get_judge
 
 router = APIRouter(prefix="/probe", tags=["probe"])
 
@@ -16,13 +13,6 @@ router = APIRouter(prefix="/probe", tags=["probe"])
 @router.get("/")
 def probe_status() -> dict[str, str]:
     return {"module": "probe", "status": "not_implemented"}
-
-
-def get_judge() -> Judge:
-    return OllamaJudge(
-        base_url=os.environ.get("OLLAMA_URL", "http://localhost:11434"),
-        model=os.environ.get("OLLAMA_MODEL", "llama3.2:3b"),
-    )
 
 
 class StepCritiqueResponse(BaseModel):
