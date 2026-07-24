@@ -3,6 +3,7 @@ import os
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 
+from sentinel_engine.hallucination.execution import ToolDefinition, detect_execution_hallucination
 from sentinel_engine.hallucination.reasoning import detect_reasoning_hallucination
 from sentinel_engine.judge.base import Judge
 from sentinel_engine.judge.ollama_judge import OllamaJudge
@@ -49,4 +50,48 @@ def critique_reasoning(
             StepCritiqueResponse(step=c.step, supported=c.supported, explanation=c.explanation)
             for c in critique.step_critiques
         ],
+    )
+
+
+class ToolDefinitionRequest(BaseModel):
+    name: str
+    description: str
+
+
+class ExecutionCritiqueRequest(BaseModel):
+    task: str
+    available_tools: list[ToolDefinitionRequest]
+    selected_tool: str
+    parameters_valid: bool
+    parameter_errors: list[str] = []
+
+
+class ExecutionCritiqueResponse(BaseModel):
+    correct_tool: str
+    tool_selection_correct: bool
+    reason: str
+    parameters_valid: bool
+    parameter_errors: list[str]
+    hallucination_detected: bool
+
+
+@router.post("/hallucination/execution", response_model=ExecutionCritiqueResponse)
+def critique_execution(
+    request: ExecutionCritiqueRequest, judge: Judge = Depends(get_judge)
+) -> ExecutionCritiqueResponse:
+    critique = detect_execution_hallucination(
+        judge,
+        task=request.task,
+        available_tools=[ToolDefinition(name=t.name, description=t.description) for t in request.available_tools],
+        selected_tool=request.selected_tool,
+        parameters_valid=request.parameters_valid,
+        parameter_errors=request.parameter_errors,
+    )
+    return ExecutionCritiqueResponse(
+        correct_tool=critique.correct_tool,
+        tool_selection_correct=critique.tool_selection_correct,
+        reason=critique.reason,
+        parameters_valid=critique.parameters_valid,
+        parameter_errors=critique.parameter_errors,
+        hallucination_detected=critique.hallucination_detected,
     )

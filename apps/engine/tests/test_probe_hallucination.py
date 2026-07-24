@@ -58,3 +58,61 @@ def test_critique_reasoning_rejects_missing_fields():
     response = client.post("/probe/hallucination/reasoning", json={"steps": ["a step"]})
 
     assert response.status_code == 422
+
+
+def test_critique_execution_returns_structured_result():
+    app.dependency_overrides[get_judge] = lambda: FakeJudge(
+        "CORRECT_TOOL: search_orders\nREASON: Correct tool for a lookup task."
+    )
+    client = TestClient(app)
+
+    response = client.post(
+        "/probe/hallucination/execution",
+        json={
+            "task": "Look up order #12345",
+            "available_tools": [
+                {"name": "search_orders", "description": "Look up an order by ID."},
+                {"name": "refund_order", "description": "Issue a refund."},
+            ],
+            "selected_tool": "search_orders",
+            "parameters_valid": True,
+            "parameter_errors": [],
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["hallucination_detected"] is False
+    assert body["tool_selection_correct"] is True
+    assert body["correct_tool"] == "search_orders"
+
+
+def test_critique_execution_flags_invalid_parameters():
+    app.dependency_overrides[get_judge] = lambda: FakeJudge(
+        "CORRECT_TOOL: search_orders\nREASON: Correct tool."
+    )
+    client = TestClient(app)
+
+    response = client.post(
+        "/probe/hallucination/execution",
+        json={
+            "task": "Look up order #12345",
+            "available_tools": [{"name": "search_orders", "description": "Look up an order by ID."}],
+            "selected_tool": "search_orders",
+            "parameters_valid": False,
+            "parameter_errors": ["root.order_id: required property missing"],
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["hallucination_detected"] is True
+    assert body["parameter_errors"] == ["root.order_id: required property missing"]
+
+
+def test_critique_execution_rejects_missing_fields():
+    client = TestClient(app)
+
+    response = client.post("/probe/hallucination/execution", json={"task": "t"})
+
+    assert response.status_code == 422
