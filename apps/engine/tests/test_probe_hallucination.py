@@ -116,3 +116,52 @@ def test_critique_execution_rejects_missing_fields():
     response = client.post("/probe/hallucination/execution", json={"task": "t"})
 
     assert response.status_code == 422
+
+
+def test_critique_perception_returns_structured_result():
+    app.dependency_overrides[get_judge] = lambda: FakeJudge(
+        "CLAIM 1: SUPPORTED - ok\nCLAIM 2: UNSUPPORTED - not in context"
+    )
+    client = TestClient(app)
+
+    response = client.post(
+        "/probe/hallucination/perception",
+        json={"context": "some retrieved text", "claims": ["claim one", "claim two"]},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["hallucination_detected"] is True
+    assert len(body["claim_critiques"]) == 2
+
+
+def test_critique_perception_rejects_missing_fields():
+    client = TestClient(app)
+
+    response = client.post("/probe/hallucination/perception", json={"context": "c"})
+
+    assert response.status_code == 422
+
+
+def test_critique_communication_returns_structured_result():
+    app.dependency_overrides[get_judge] = lambda: FakeJudge("VERDICT: UNFAITHFUL\nREASON: contradiction")
+    client = TestClient(app)
+
+    response = client.post(
+        "/probe/hallucination/communication",
+        json={"internal_facts": ["fact one"], "final_message": "a message"},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["hallucination_detected"] is True
+    assert body["faithful"] is False
+    assert body["reason"] == "contradiction"
+
+
+def test_critique_communication_rejects_missing_fields():
+    client = TestClient(app)
+
+    response = client.post("/probe/hallucination/communication", json={"internal_facts": ["f"]})
+
+    assert response.status_code == 422

@@ -3,7 +3,9 @@ import os
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 
+from sentinel_engine.hallucination.communication import detect_communication_hallucination
 from sentinel_engine.hallucination.execution import ToolDefinition, detect_execution_hallucination
+from sentinel_engine.hallucination.perception import detect_perception_hallucination
 from sentinel_engine.hallucination.reasoning import detect_reasoning_hallucination
 from sentinel_engine.judge.base import Judge
 from sentinel_engine.judge.ollama_judge import OllamaJudge
@@ -93,5 +95,58 @@ def critique_execution(
         reason=critique.reason,
         parameters_valid=critique.parameters_valid,
         parameter_errors=critique.parameter_errors,
+        hallucination_detected=critique.hallucination_detected,
+    )
+
+
+class ClaimCritiqueResponse(BaseModel):
+    claim: str
+    supported: bool
+    explanation: str
+
+
+class PerceptionCritiqueRequest(BaseModel):
+    context: str
+    claims: list[str]
+
+
+class PerceptionCritiqueResponse(BaseModel):
+    hallucination_detected: bool
+    claim_critiques: list[ClaimCritiqueResponse]
+
+
+@router.post("/hallucination/perception", response_model=PerceptionCritiqueResponse)
+def critique_perception(
+    request: PerceptionCritiqueRequest, judge: Judge = Depends(get_judge)
+) -> PerceptionCritiqueResponse:
+    critique = detect_perception_hallucination(judge, request.context, request.claims)
+    return PerceptionCritiqueResponse(
+        hallucination_detected=critique.hallucination_detected,
+        claim_critiques=[
+            ClaimCritiqueResponse(claim=c.claim, supported=c.supported, explanation=c.explanation)
+            for c in critique.claim_critiques
+        ],
+    )
+
+
+class CommunicationCritiqueRequest(BaseModel):
+    internal_facts: list[str]
+    final_message: str
+
+
+class CommunicationCritiqueResponse(BaseModel):
+    faithful: bool
+    reason: str
+    hallucination_detected: bool
+
+
+@router.post("/hallucination/communication", response_model=CommunicationCritiqueResponse)
+def critique_communication(
+    request: CommunicationCritiqueRequest, judge: Judge = Depends(get_judge)
+) -> CommunicationCritiqueResponse:
+    critique = detect_communication_hallucination(judge, request.internal_facts, request.final_message)
+    return CommunicationCritiqueResponse(
+        faithful=critique.faithful,
+        reason=critique.reason,
         hallucination_detected=critique.hallucination_detected,
     )
