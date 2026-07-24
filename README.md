@@ -3,14 +3,17 @@
 > Self-hosted AI Quality Engineering platform — trace the agents you build, black-box test the AI products you consume, red-team them, benchmark them against human baselines, and audit them for accessibility. All in one deployment. No data leaves your infrastructure.
 
 > [!NOTE]
-> **Status: early, in-progress build (Day 7 of a 50-day plan).** The web
-> shell, auth, and both agent SDKs (`sentinel-py`, `sentinel-js`) exist and
-> emit real trace data end-to-end. Everything else in the module list below
-> is design-complete but not yet implemented. See the
+> **Status: early, in-progress build (Day 22 of a 50-day plan).** **Probe**
+> (agents you build) is functional end-to-end: trace capture via both SDKs,
+> tool-call schema validation, a 4-stage hallucination detector backed by a
+> self-hosted LLM judge, and a CI/CD quality gate. **Mirror** (AI products
+> you consume) is functional end-to-end too: multi-provider API runner,
+> LLM-judge quality scoring, model-drift detection, a suite-builder UI, and
+> Playwright-driven UI automation (against local fixtures for now — see the
+> design spec for the live-site rollout plan). **Guard, Cognify, and Reach
+> are design-complete but not yet implemented.** See the
 > [design spec](docs/superpowers/specs/2026-06-26-sentinel-design.md) for the
 > full plan. Expect breaking changes before v1.
-
-<img src=".github/media/how-it-works.png" width="900" alt="How sentinel-qe works: agent SDKs and external AI targets feed the Next.js web shell into a Python FastAPI engine's five QE modules (Probe, Mirror, Guard, Cognify, Reach), which persist to Postgres/ClickHouse/Redis/MinIO and surface results back in the dashboard" />
 
 ## The five modules
 
@@ -24,41 +27,40 @@
 
 ## Architecture
 
-```
-┌─────────────────────────────────────────────────────────┐
-│                  Sentinel Web (Next.js 15)               │
-│   Dashboard · Projects · Test Suites · Results · Reports│
-│        Auth (NextAuth.js — SSO/OIDC/SAML)               │
-│             API Routes (internal REST)                   │
-└──────────────────────┬──────────────────────────────────┘
-                        │ HTTP (internal)
-┌───────────────────────▼──────────────────────────────────┐
-│              Sentinel Engine (Python / FastAPI)          │
-│  Hallucination Attribution · LLM Judge · Red-team        │
-│  Cognitive Benchmark · Accessibility Scorer               │
-│  External AI API Runner · Playwright Controller           │
-└───────────────────────┬──────────────────────────────────┘
-                        │
-┌───────────────────────▼──────────────────────────────────┐
-│                      Data Layer                            │
-│  PostgreSQL — projects, runs, results, users, orgs         │
-│  ClickHouse — traces, metrics, time-series at scale        │
-│  Redis      — job queues, sessions, cache                  │
-│  MinIO      — artifacts, screenshots, reports, exports      │
-└─────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TB
+    PY["sentinel-py → PyPI<br/>Python agent instrumentation"]
+    JS["sentinel-js → npm<br/>TypeScript agent instrumentation"]
 
-┌─────────────────────────────────────────────────────────┐
-│                      SDKs (separate packages)             │
-│  sentinel-py  → PyPI  (Python agent instrumentation)      │
-│  sentinel-js  → npm   (TypeScript agent instrumentation)   │
-└─────────────────────────────────────────────────────────┘
+    subgraph WEB["Sentinel Web — Next.js 15"]
+        DASH["Dashboard · Test Suites · Results"]
+        AUTH["Auth — NextAuth.js<br/>(Credentials now; SSO/OIDC/SAML planned)"]
+        API["API Routes — internal REST"]
+    end
+
+    subgraph ENGINE["Sentinel Engine — Python / FastAPI"]
+        BUILT["Built: Hallucination Attribution · Self-hosted LLM Judge<br/>External AI API Runner · Playwright Controller"]
+        PLANNED["Planned: Red-team · Cognitive Benchmark · Accessibility Scorer"]
+    end
+
+    subgraph DATA["Data Layer"]
+        PG["PostgreSQL — suites, runs, results, users, orgs"]
+        CH["ClickHouse — traces, metrics, time-series"]
+        REDIS["Redis — job queues, cache"]
+        MINIO["MinIO — artifacts, exports (planned)"]
+    end
+
+    PY -->|"POST /api/traces"| WEB
+    JS -->|"POST /api/traces"| WEB
+    WEB -->|"HTTP, internal"| ENGINE
+    WEB --> DATA
 ```
 
 Modular monolith: all five modules share one data model, auth layer, and
-project shell. AI-heavy computation (LLM judges, red-teaming, Playwright
-control) runs in the Python engine as a separate process in the same
-deployment, so modules can be split into independent services later without
-a rewrite.
+test-suite shell. AI-heavy computation (the self-hosted LLM judge,
+red-teaming, Playwright control) runs in the Python engine as a separate
+process in the same deployment, so modules can be split into independent
+services later without a rewrite.
 
 ## Tech stack
 
@@ -66,12 +68,12 @@ a rewrite.
 |---|---|
 | UI + API shell | Next.js 15 (App Router) + TypeScript |
 | AI engine | Python 3.12 + FastAPI + Uvicorn |
-| ORM | Prisma (web) + SQLAlchemy (engine) |
+| ORM | Prisma (web only — the Python engine has no database access yet) |
 | Primary DB | PostgreSQL 16 |
 | Metrics DB | ClickHouse |
 | Queue | Redis + BullMQ (JS) / Celery (Python) |
 | Artifact store | MinIO (S3-compatible) |
-| Auth | NextAuth.js v5 (SSO via OIDC/SAML) |
+| Auth | NextAuth.js v5 (Credentials now; SSO via OIDC/SAML planned) |
 | UI components | shadcn/ui + Tailwind CSS |
 | Monorepo | pnpm workspaces + Turborepo |
 | Python packaging | Poetry |
@@ -85,8 +87,11 @@ Prerequisites: Node.js ≥ 20, pnpm ≥ 9, Docker.
 ```bash
 cp .env.example .env
 
-# start Postgres, Redis, MinIO, ClickHouse, and the Python engine
+# start Postgres, Redis, MinIO, ClickHouse, Ollama (self-hosted LLM judge), and the Python engine
 docker compose -f docker/docker-compose.yml -f docker/docker-compose.dev.yml up -d
+
+# one-time: pull the judge model into the Ollama container
+docker exec sentinel_ollama ollama pull llama3.2:3b
 
 pnpm install
 pnpm dev          # runs all apps in the monorepo, Next.js on :3000
