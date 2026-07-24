@@ -405,4 +405,22 @@ Each session starts by reading `CLAUDE.md` at the project root for the current d
 
 ---
 
-*Spec approved by user on 2026-06-26. Implementation plan to follow.*
+## 12. Judge Backend (resolved 2026-07-24, before Day 9)
+
+Several deliverables from Day 11 onward (hallucination reasoning-stage critique, Day 17's "LLM judge scorer", Guard's manipulation/PII detectors, Cognify's multi-dimensional scorer, Reach's cultural-sensitivity scanner) were originally described as needing an "LLM judge." Sending customer AI-agent outputs to a third-party cloud LLM API to be scored would (a) contradict §1's "no data leaves the customer's environment" promise, and (b) cost real per-call money, contradicting the project's zero-investment constraint. This was caught before any of that code was written.
+
+**Resolution:**
+- **Default judge backend is a self-hosted, open-weight model** served via a new **Ollama** service in `docker/docker-compose.yml` (added when first needed, Day 11) — zero API cost, zero data leaves the deployment, consistent with "self-hosted only."
+- The judge is implemented behind a **pluggable interface** in the Python engine (`sentinel_engine/services/judge.py` or similar, to be named in the Day 11 plan) so a real cloud provider can be swapped in later as an opt-in, non-default backend — never required to get a feature working.
+- **Anything that doesn't need generative judgment skips the model entirely**: PII detection (regex), reading-level scoring (Flesch-Kincaid, a pure formula), tool-call/schema validation (deterministic, already built Day 8), semantic-equivalence checks (a small local embedding model, not a generative call) all stay rule-based/statistical — cheaper, deterministic, and easier to test than a model call regardless of cost.
+- This does **not** apply to Mirror (Days 16–22): Mirror's entire purpose is testing external AI products the customer already sends data to as part of normal usage (OpenAI/Anthropic/Google/Grok APIs, ChatGPT.com/Claude.ai web UIs) — calling those providers is the feature being tested, not an internal implementation detail, so it's exempt from the local-first judge constraint.
+
+## 13. Mirror Live-Site Automation (resolved 2026-07-24, before Day 9)
+
+Days 20–21 (Playwright automation against ChatGPT.com/Claude.ai) originally implied driving real production web UIs. Without the user's own logged-in test accounts, this risks violating those products' Terms of Service and would be flaky to build/test against regardless.
+
+**Resolution:** Days 20–21 build the Playwright automation framework and page-object selectors against **local test fixtures** — static HTML pages checked into the repo that mimic ChatGPT/Claude.ai's DOM structure closely enough to exercise the automation logic (conversation flow, message send/receive, response extraction) deterministically and offline. Pointing the same framework at the real live sites is a **config/base-URL swap**, deferred until the user supplies real test accounts and explicitly asks for it — never done automatically against production sites.
+
+---
+
+*Spec approved by user on 2026-06-26. Judge backend and Mirror automation scope amended 2026-07-24 (see §12–13), before Day 9 implementation began.*
