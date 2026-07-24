@@ -2,7 +2,7 @@ import os
 
 import httpx
 
-from .base import Provider, ProviderResponse
+from .base import Message, Provider, ProviderResponse
 
 
 class AnthropicProvider(Provider):
@@ -12,7 +12,7 @@ class AnthropicProvider(Provider):
         self.api_key = api_key or os.environ.get("ANTHROPIC_API_KEY", "")
         self.model = model
 
-    def complete(self, prompt: str) -> ProviderResponse:
+    def complete_conversation(self, messages: list[Message]) -> ProviderResponse:
         response = httpx.post(
             f"{self.base_url}/messages",
             headers={
@@ -23,7 +23,7 @@ class AnthropicProvider(Provider):
             json={
                 "model": self.model,
                 "max_tokens": 1024,
-                "messages": [{"role": "user", "content": prompt}],
+                "messages": [{"role": message.role, "content": message.content} for message in messages],
             },
             timeout=60.0,
         )
