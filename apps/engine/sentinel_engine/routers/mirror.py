@@ -3,6 +3,7 @@ from pydantic import BaseModel
 
 from sentinel_engine.judge import Judge, get_judge
 from sentinel_engine.playwright_service.browser import PageContent, fetch_page_content
+from sentinel_engine.playwright_service.conversation import chatgpt_session, claude_session
 from sentinel_engine.mirror.providers.anthropic_provider import AnthropicProvider
 from sentinel_engine.mirror.providers.base import Provider
 from sentinel_engine.mirror.providers.google_provider import GoogleProvider
@@ -107,3 +108,38 @@ def get_page_fetcher():
 def navigate(request: NavigateRequest, fetcher=Depends(get_page_fetcher)) -> NavigateResponse:
     content: PageContent = fetcher(request.url)
     return NavigateResponse(title=content.title, text=content.text)
+
+
+class ConversationRequest(BaseModel):
+    product: str
+    url: str
+    messages: list[str]
+
+
+class ConversationResponse(BaseModel):
+    responses: list[str]
+
+
+_CONVERSATION_SESSION_FACTORIES = {
+    "chatgpt": chatgpt_session,
+    "claude": claude_session,
+}
+
+
+def get_conversation_runner():
+    def run(product: str, url: str, messages: list[str]) -> list[str]:
+        factory = _CONVERSATION_SESSION_FACTORIES.get(product)
+        if factory is None:
+            raise HTTPException(status_code=400, detail=f'Unknown product "{product}"')
+        with factory(url) as session:
+            return [session.send_message(message) for message in messages]
+
+    return run
+
+
+@router.post("/ui/conversation", response_model=ConversationResponse)
+def conversation(
+    request: ConversationRequest, runner=Depends(get_conversation_runner)
+) -> ConversationResponse:
+    responses = runner(request.product, request.url, request.messages)
+    return ConversationResponse(responses=responses)
