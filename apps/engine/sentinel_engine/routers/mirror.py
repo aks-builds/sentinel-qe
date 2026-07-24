@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from sentinel_engine.judge import Judge, get_judge
+from sentinel_engine.playwright_service.browser import PageContent, fetch_page_content
 from sentinel_engine.mirror.providers.anthropic_provider import AnthropicProvider
 from sentinel_engine.mirror.providers.base import Provider
 from sentinel_engine.mirror.providers.google_provider import GoogleProvider
@@ -87,3 +88,22 @@ def score(request: ScoreResponseRequest, judge: Judge = Depends(get_judge)) -> S
         tone=result.tone,
         reason=result.reason,
     )
+
+
+class NavigateRequest(BaseModel):
+    url: str
+
+
+class NavigateResponse(BaseModel):
+    title: str
+    text: str
+
+
+def get_page_fetcher():
+    return fetch_page_content
+
+
+@router.post("/ui/navigate", response_model=NavigateResponse)
+def navigate(request: NavigateRequest, fetcher=Depends(get_page_fetcher)) -> NavigateResponse:
+    content: PageContent = fetcher(request.url)
+    return NavigateResponse(title=content.title, text=content.text)
