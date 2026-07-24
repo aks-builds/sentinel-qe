@@ -16,30 +16,31 @@ Full spec: `docs/superpowers/specs/2026-06-26-sentinel-design.md`
 ## Current Status
 
 **Phase:** Mirror v1 (Days 16–22) — Phase 3.
-**Day completed:** Day 17
+**Day completed:** Day 18
 **What was built:**
-- **`get_judge` moved** from `routers/probe.py` to `sentinel_engine/judge/dependency.py` (re-exported via `sentinel_engine.judge`) — a small, necessary refactor so Mirror could use the same local judge without an awkward router-to-router import. Transparent to Days 11-13's existing tests (same function object, different file).
-- **`score_quality(judge, prompt, response, expected_answer=None)`**: scores a Mirror response on `CORRECTNESS`/`RELEVANCE`/`TONE` (1-5 scale) plus a `reason`, via the same line-based response format as Days 11-14 — uses the **local** Ollama judge, not one of Day 16's four external providers, since scoring quality is an internal Sentinel operation (calling a second external provider to grade the first would leak the customer's test data to a party beyond the one already under test).
-- **New endpoint**: `POST /mirror/score`.
-- Built via 1 round of 2 parallel tracks (the `get_judge` refactor; `score_quality`'s pure logic — fully disjoint, and the pure-logic task never even imports `get_judge`) then the endpoint done directly (needed both merged).
-- Tests: 62/62 pytest passing (54 pre-existing + 8 new).
-- **Live smoke test against real Ollama, 6 calls across 2 scenarios (3 draws each) — the most reliable judge-backed result of the whole hallucination/scoring arc so far.** A genuinely correct response ("Paris") scored 5/5/5 on all three dimensions, consistently, across all 3 draws, with accurate reasoning every time. A genuinely wrong response ("Berlin," with a fabricated population figure) scored correctness 0-1 and relevance 2 across all 3 draws, every single reason correctly identifying that Berlin is Germany's capital, not France's. **Small, honestly-recorded quirk:** one draw returned `correctness: 0`, technically below the prompt's stated 1-5 floor — still correctly signaling "bad," not a wrong verdict, just an unenforced range. Unlike Days 11-12's detectors, this specific task (quality scoring with a decisive right/wrong answer available) appears meaningfully more reliable than the more abstract "hallucination in an isolated reasoning chain" tasks — worth remembering as a real, positive data point, not just cataloguing failures.
+- **Mirror's first persistence**: reused Day 9's `TestSuite`/`TestRun` models rather than inventing a parallel schema (`module: String` already existed precisely to support this). Added `TestSuite.prompts` (Json), `TestRun.provider`/`isBaseline`, and a new `MirrorResult` model (one row per prompt per run: response + the three Day 17 quality scores).
+- **Deliberate decoupling**: the results-submission route does **not** call Days 16-17's engine endpoints itself — it accepts already-computed results in the request body, mirroring Probe's Day 9 "customer's own code reports back" pattern. **Side effect: this made Day 18 fully live-verifiable without any external provider API key** — the first Mirror day since Day 15 (Probe) with a real, non-mocked smoke test.
+- **`computeDrift(baselineResults, currentResults, threshold=1)`**: pure TypeScript, no LLM call — a dimension is "regressed" if baseline minus current is at least the threshold; a prompt with no baseline match or either side null is never flagged.
+- **Four new routes**: `GET/POST /api/mirror/suites`, `POST /api/mirror/suites/[suiteId]/runs`, `POST /api/mirror/runs/[runId]/results`, `GET /api/mirror/suites/[suiteId]/drift`.
+- Built via 2 rounds: Round 1 (2 parallel — Prisma migration done directly by the controller, `computeDrift` in an isolated worktree), Round 2 (4 parallel worktree tracks for the four routes, all depending only on Round 1).
+- Tests: 111/111 vitest passing (90 pre-existing + 21 new). One expected type-check ripple fixed: `TestSuite.prompts` becoming a required key on the Prisma-generated type broke an existing Day 9 test fixture (`suite-list.test.tsx`) that didn't include it — added `prompts: null` there.
+- **Manually verified fully end-to-end against the live stack — the first fully-real Mirror smoke test.** Created a suite, a baseline run with a correct response (scores 5/5/5), a comparison run with a wrong response (scores 1/3/4), then queried drift: `regressionDetected: true`, correctly flagging the 4-point correctness drop. Zero bugs found.
 
 **Notes:**
-- Mirror is still entirely stateless — Days 16-17 are both pure request/response endpoints, nothing persisted anywhere. Day 18 (drift detection) will need a place to store baseline runs; nothing exists for that yet.
-- No external provider API keys still — unrelated to today, since Day 17 uses the local judge, not Mirror's providers.
+- No UI for any of this yet — Days 16-18 are all backend/API. Day 19 (comparative benchmarking UI) is the first Mirror UI day.
+- No external provider API keys still exist — unrelated to today, since results submission never calls a provider.
 - No mobile navigation yet — sidebar is desktop-only (unchanged since Day 3).
-- Repo is public: `github.com/aks-builds/sentinel-qe`; push again before ending the session if Day 17's commits haven't been pushed yet.
+- Repo is public: `github.com/aks-builds/sentinel-qe`; push again before ending the session if Day 18's commits haven't been pushed yet.
 
 ---
 
-## Next Session — Day 18
+## Next Session — Day 19
 
-**Plan file:** `docs/superpowers/plans/2026-07-14-day18-mirror-drift-detection.md` *(to be written)*
+**Plan file:** `docs/superpowers/plans/2026-07-15-day19-mirror-comparative-ui.md` *(to be written)*
 
-**Goal:** Model drift detection — compare a current run against a stored baseline and flag regressions, per the design spec's Phase 3 Day 18 deliverable.
+**Goal:** Comparative benchmarking UI — side-by-side provider results, per the design spec's Phase 3 Day 19 deliverable.
 
 **Architecture decisions locked in:**
-- **This is the first day Mirror needs to persist anything.** Days 16-17 are both stateless; nothing about a run, a prompt, a response, or a score has ever been saved to Postgres or ClickHouse. Decide the storage shape deliberately (a new Prisma model, mirroring Probe's `TestSuite`/`TestRun` pattern from Day 9, is the most consistent choice) rather than bolting drift detection onto an ad-hoc structure.
-- Reuse `score_quality` (Day 17) as the metric drift is measured against — don't invent a second scoring mechanism.
-- Still no external provider API keys — if Day 18 needs a REAL Mirror response for its own live verification (as opposed to fixture data), it will hit the same gap Day 16 did.
+- **First Mirror UI day** — Days 16-18 built the full backend (providers, scoring, suites/runs/results/drift) with zero UI. Reuse Probe's dashboard/sidebar/module-card conventions (Days 3, 9) rather than inventing new patterns; the Mirror module card already exists in `lib/modules.ts` (Day 3) pointing at `/dashboard/mirror`, currently rendering the placeholder page.
+- Surface the four Day 18 routes (suites, runs, results, drift) plus Day 16-17's engine endpoints (via the existing `/api/probe/critique/[type]`-style proxy pattern from Day 14, generalized) — don't invent new backend endpoints unless something is genuinely missing.
+- Still no external provider API keys — any real "send this suite to OpenAI and see results" UI flow can be built and tested, but its own live verification will hit the same gap Day 16 did.
