@@ -1,0 +1,39 @@
+name: 'Sentinel Probe Gate'
+description: 'Trigger and check a Sentinel Probe test run, posting a PR comment and blocking merge on threshold failure.'
+inputs:
+  endpoint:
+    description: 'Sentinel deployment URL (e.g. https://sentinel.acme.internal)'
+    required: true
+  api-key:
+    description: 'Sentinel API key'
+    required: true
+  suite:
+    description: 'Probe test suite name (required for mode: start)'
+    required: false
+  mode:
+    description: '"start" to trigger a new run, "check" to complete and evaluate an existing run'
+    required: true
+  run-id:
+    description: "The run ID to check (required for mode: check, typically from a prior 'start' step's output)"
+    required: false
+  max-duration-seconds:
+    description: 'Fail the gate if the run took longer than this many seconds to complete'
+    required: false
+    default: '300'
+  hallucination-rate:
+    description: 'Accepted but not yet enforced -- Sentinel does not yet compute a per-run hallucination rate'
+    required: false
+  cost-usd:
+    description: 'Accepted but not yet enforced -- Sentinel does not yet compute a per-run cost'
+    required: false
+  score:
+    description: 'Accepted but not yet enforced -- Sentinel does not yet compute a per-run score'
+    required: false
+outputs:
+  run-id:
+    description: 'The created run ID (mode: start)'
+  passed:
+    description: '"true" or "false" (mode: check)'
+runs:
+  using: 'node20'
+  main: 'index.js'
