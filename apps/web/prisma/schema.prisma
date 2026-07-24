@@ -16,7 +16,8 @@ model Organization {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  users User[]
+  users      User[]
+  testSuites TestSuite[]
 }
 
 model User {
@@ -56,6 +57,35 @@ model AuditLog {
 
   @@index([userId])
   @@index([createdAt])
+}
+
+enum TestRunStatus {
+  RUNNING
+  COMPLETED
+}
+
+model TestSuite {
+  id             String       @id @default(cuid())
+  name           String
+  module         String
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  createdAt      DateTime     @default(now())
+
+  runs TestRun[]
+
+  @@index([organizationId])
+}
+
+model TestRun {
+  id          String        @id @default(cuid())
+  suiteId     String
+  suite       TestSuite     @relation(fields: [suiteId], references: [id], onDelete: Cascade)
+  status      TestRunStatus @default(RUNNING)
+  startedAt   DateTime      @default(now())
+  completedAt DateTime?
+
+  @@index([suiteId])
 }
 
 // ─── NextAuth adapter models (required for future OIDC/SAML support) ─────────
