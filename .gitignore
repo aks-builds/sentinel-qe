@@ -43,3 +43,6 @@ __pycache__/
 
 # docker volumes
 docker/volumes/
+
+# internal planning docs — kept locally, never published
+docs/

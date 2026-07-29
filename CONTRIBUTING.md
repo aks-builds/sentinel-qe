@@ -1,9 +1,10 @@
 # Contributing to Sentinel
 
-Thanks for your interest! Sentinel is in early, day-by-day development —
-please read the [design spec](docs/superpowers/specs/2026-06-26-sentinel-design.md)
-and the relevant [implementation plan](docs/superpowers/plans/) under `docs/`
-first, so changes land in the right phase of the build.
+Thanks for your interest! Sentinel is in early, day-by-day development,
+tracked against an internal design spec and per-day implementation plans
+that aren't published in this repo. Open an issue first to confirm scope
+and direction before submitting a substantial PR, so changes land in the
+right phase of the build.
 
 ## Development setup
 

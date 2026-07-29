@@ -9,15 +9,19 @@
 > self-hosted LLM judge, and a CI/CD quality gate. **Mirror** (AI products
 > you consume) is functional end-to-end too: multi-provider API runner,
 > LLM-judge quality scoring, model-drift detection, a suite-builder UI, and
-> Playwright-driven UI automation (against local fixtures for now — see the
-> design spec for the live-site rollout plan). **Guard** (security) has begun:
+> Playwright-driven UI automation (against local fixtures for now, with a
+> live-site rollout planned next). **Guard** (security) has begun:
 > a 23-prompt single-turn attack library and a live multi-turn attack engine
 > (Crescendo, Sequential Jailbreak, Tree Jailbreaking) with self-hosted-judge
 > compliance scoring — no external provider API keys exist yet, so real-target
 > runs are untested end-to-end. **Cognify and Reach are design-complete but
-> not yet implemented.** See the
-> [design spec](docs/superpowers/specs/2026-06-26-sentinel-design.md) for the
-> full plan. Expect breaking changes before v1.
+> not yet implemented.** Expect breaking changes before v1.
+
+<div align="center">
+
+<img src=".github/media/how-it-works.png" width="900" alt="How Sentinel works: an SDK instruments an agent or API call, traces are ingested into Postgres/ClickHouse/Redis, requests route to one of five modules (Probe, Mirror, Guard, Cognify, Reach) sharing one auth layer and data model, AI-heavy work runs in the Python engine, a self-hosted Ollama judge scores the result without any data leaving the deployment, every module returns a structured verdict with evidence, and results land in the dashboard plus a CI/CD quality gate." />
+
+</div>
 
 ## The five modules
 
@@ -122,8 +126,7 @@ sentinel/
 ├── packages/
 │   ├── sentinel-py/     # Agent instrumentation SDK (PyPI)
 │   └── sentinel-js/     # Agent instrumentation SDK (npm)
-├── docker/              # Compose files for the data layer + engine
-└── docs/                # Design spec, per-day implementation plans
+└── docker/              # Compose files for the data layer + engine
 ```
 
 ## Design principles

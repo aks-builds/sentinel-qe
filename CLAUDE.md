@@ -5,7 +5,8 @@ Sentinel is a self-hosted enterprise AI Quality Engineering platform.
 Five modules: Probe (agent testing), Mirror (external AI product testing),
 Guard (security), Cognify (cognitive benchmarking), Reach (accessibility).
 
-Full spec: `docs/superpowers/specs/2026-06-26-sentinel-design.md`
+Full spec (local only — `docs/` is gitignored, not committed):
+`docs/superpowers/specs/2026-06-26-sentinel-design.md`
 
 ## Session Protocol
 - **Start every session:** Read this file. Read the plan for the current day.
@@ -42,7 +43,7 @@ Full spec: `docs/superpowers/specs/2026-06-26-sentinel-design.md`
 
 ## Next Session — Day 25
 
-**Plan file:** `docs/superpowers/plans/2026-07-21-day25-guard-agentic-vulnerabilities.md` *(to be written)*
+**Plan file (local only):** `docs/superpowers/plans/2026-07-21-day25-guard-agentic-vulnerabilities.md` *(to be written)*
 
 **Goal:** Agentic-specific vulnerability tests — Goal Theft, Recursive Hijacking, Excessive Agency — per the design spec's Phase 4 Day 25 deliverable.
 

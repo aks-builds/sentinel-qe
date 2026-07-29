@@ -24,8 +24,7 @@ infrastructure:
 
 ## Status
 
-Sentinel is early-stage (Day 7 of a 50-day build). Auth, API key
+Sentinel is early-stage (Day 24 of a 50-day build). Auth, API key
 validation, and several other security-relevant pieces described in the
-[design spec](docs/superpowers/specs/2026-06-26-sentinel-design.md) are not
-yet implemented — treat any pre-v1 deployment as a development instance, not
-a production one.
+internal design spec are not yet implemented — treat any pre-v1 deployment
+as a development instance, not a production one.
